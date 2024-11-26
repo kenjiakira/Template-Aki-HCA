@@ -1,0 +1,39 @@
+{
+  "prefix": ".",
+  "adminUIDs": [
+    "",
+    "",
+    "",
+    "",
+    "YOUR ID",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "moderatorUIDs": [
+    "",
+    "",
+    "",
+    "",
+    "YOUR moderator ID",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "botName": "NAME BOT",
+  "ownerName": "OWNER NAME",
+  "facebookLink": "ID FACEBOOK",
+  "resend": false,
+  "notilogs": true,
+  "appstate": "./appstate.json",
+  "restart": true,
+  "restartTime": 50,
+  "FCA": "hut-chat-api",
+  "loginpanel": {
+    "user": "Your Name",
+    "password": "Your Password",
+    "passcode": "Your 2FA"
+  }
+}
