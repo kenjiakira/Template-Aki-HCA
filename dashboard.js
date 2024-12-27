@@ -1,4 +1,3 @@
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -11,18 +10,19 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 const adminConfig = JSON.parse(fs.readFileSync("admin.json", "utf8"));
-const PORT = process.env.PORT || 9999;
+const PORT = process.env.PORT || 8080; 
 const chalk = require("chalk");
 const boldText = (text) => chalk.bold(text)
 const gradient = require("gradient-string");
+
+io.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
+});
+
+app.use('/toolbox', express.static(path.join(__dirname, 'Toolbox')));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-const uptimeInSeconds = Math.floor(process.uptime());
-const uptimeInMinutes = Math.floor(uptimeInSeconds / 60);
-const uptimeInHours = Math.floor(uptimeInMinutes / 60);
-
-const uptime = `${uptimeInSeconds} seconds, ${uptimeInMinutes % 60} minutes, ${uptimeInHours} hours`;
 
 const username = adminConfig.loginpanel.user;
 const password = adminConfig.loginpanel.password;
@@ -37,66 +37,129 @@ app.use(session({
 
 function getBotInfo() {
     return {
-        botName: adminConfig.botName || "Name_Bot",
-        prefix: adminConfig.prefix || "Your Prefix",
-        ownerName: adminConfig.ownerName || "Your ownerName",
-        commandsCount: fs.readdirSync('./cmds').length,
+        botName: adminConfig.botName || "Aki Bot",
+        prefix: adminConfig.prefix || ".",
+        ownerName: adminConfig.ownerName || "Kenji Akira",
+        commandsCount: fs.readdirSync('./commands').length,
         eventsCount: fs.readdirSync('./events').length,
         threadsCount: Object.keys(JSON.parse(fs.readFileSync('./database/threads.json', 'utf8') || "{}")).length,
         usersCount: Object.keys(JSON.parse(fs.readFileSync('./database/users.json', 'utf8') || "{}")).length,
-            uptime: `${Math.floor(process.uptime())} seconds`,
+        uptime: `${Math.floor(process.uptime())} seconds`,
         os: `${os.type()} ${os.release()} (${os.platform()})`,
-        host: os.hostname(),
-        responseTime: `${responseLatency}ms`,
-        ram: `${(process.memoryUsage().heapUsed / 1024 / 1024)}`,
-        cpu: `${(process.cpuUsage().user / 1024 / 1024).toFixed(2)}`,
-        FCA: `${adminConfig.FCA}`,
-       // admin: adminConfig.adminUIDs.includes(senderID)
+        hostname: os.hostname(),
+        responseTime: `${responseLatency}ms`
     };
 }
 
 let responseLatency = 0;
 
+const { exec } = require('child_process');
+let activeProcess = null;
+
+const { initializeSocket } = require('./utils/logs');
+
+// After creating io
+initializeSocket(io);
+
 io.on('connection', (socket) => {
+    console.log('Client connected to socket');
+    
     socket.emit('updateStats', getBotInfo());
 
-    socket.on('restartBot', (inputPasscode) => {
-        if (inputPasscode === restartPasscode) {
-            socket.emit('restartSuccess', 'Successfully Restarted!') 
-            
-        } else {
-            socket.emit('restartFailed', 'Incorrect passcode. Please try again.');
+    let activeProcess = null;
+
+    socket.on('executeCommand', async (command) => {
+        if (activeProcess) {
+            activeProcess.kill();
+        }
+
+        const startTime = Date.now();
+        
+        try {
+            if (command.toLowerCase() === 'clear') {
+                socket.emit('clearConsole');
+                return;
+            }
+
+            if (command.toLowerCase() === 'restart') {
+                socket.emit('commandOutput', {
+                    output: 'Restarting bot...',
+                    color: '#00f2fe'
+                });
+                setTimeout(() => {
+                    process.exit(1);
+                }, 1000);
+                return;
+            }
+
+            activeProcess = spawn(command, [], {
+                shell: true,
+                env: { ...process.env, FORCE_COLOR: true }
+            });
+
+            activeProcess.stdout.on('data', (data) => {
+                socket.emit('commandOutput', {
+                    output: data.toString(),
+                    color: '#00f2fe'
+                });
+            });
+
+            activeProcess.stderr.on('data', (data) => {
+                socket.emit('commandOutput', {
+                    output: data.toString(),
+                    color: '#ff416c'
+                });
+            });
+
+            activeProcess.on('close', (code) => {
+                const elapsedTime = Date.now() - startTime;
+                socket.emit('commandOutput', {
+                    output: `Command completed with code ${code} (${elapsedTime}ms)`,
+                    color: code === 0 ? '#00f2fe' : '#ff416c'
+                });
+                activeProcess = null;
+            });
+
+        } catch (err) {
+            socket.emit('commandOutput', {
+                output: `Error: ${err.message}`,
+                color: '#ff416c'
+            });
         }
     });
 
-    socket.on('executeCommand', (command) => {
-        const commandParts = command.split(' ');
-        const cmd = commandParts[0];
-        const args = commandParts.slice(1);
-
-        const processCommand = spawn(cmd, args, { shell: true });
-        const startTime = Date.now();
-
-        processCommand.stdout.on('data', (data) => {
-            const elapsedTime = Date.now() - startTime;
-            socket.emit('commandOutput', { output: `$Hutchin-bot ~: ${data}`, color: 'green' });
-        });
-
-        processCommand.stderr.on('data', (data) => {
-            const elapsedTime = Date.now() - startTime;
-            socket.emit('commandOutput', { output: `$Hutchin-bot ~: Error: ${data} (Response time: ${elapsedTime} ms)`, color: 'red' });
-        });
-
-        processCommand.on('close', (code) => {
-            const elapsedTime = Date.now() - startTime;
-            socket.emit('commandOutput', { output: `$Hutchin-bot ~: Command exited with code ${code} (Response time: ${elapsedTime} ms)`, color: 'blue' });
-        });
+    socket.on('stopCommand', () => {
+        if (activeProcess) {
+            activeProcess.kill();
+            socket.emit('commandOutput', {
+                output: 'Command execution stopped',
+                color: '#ffd700'
+            });
+            activeProcess = null;
+        }
     });
 
-    socket.on('exitConsole', () => {
-        socket.emit('commandOutput', { output: 'Exiting console...', color: 'blue' });
-        socket.emit('redirectHome');
-        socket.disconnect();
+    socket.on('restartBot', (passcode) => {
+        if (passcode === restartPasscode) {
+            socket.emit('restartSuccess', 'Bot is restarting...');
+            setTimeout(() => {
+                process.exit(1);
+            }, 2000);
+        } else {
+            socket.emit('restartFailed', 'Invalid passcode');
+        }
+    });
+
+    socket.on('disconnect', () => {
+        if (activeProcess) {
+            activeProcess.kill();
+        }
+        console.log('Client disconnected');
+    });
+
+    // Add handler for bot logs
+    socket.on('botLog', (data) => {
+        io.emit('botLog', data);
     });
 
     setInterval(() => {
@@ -126,21 +189,24 @@ function checkAuth(req, res, next) {
 }
 
 app.get('/console', checkAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard', '3028.html'));
+    res.sendFile(path.join(__dirname, 'Toolbox', '3028.html'));
 });
 
 app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard', 'login.html'));
+    res.sendFile(path.join(__dirname, 'toolbox', 'login.html'));
 });
 
-app.get('/console', (req, res) => {
+app.get('/', (req, res) => {
     if (req.session.loggedin) {
-        res.sendFile(path.join(__dirname, 'dashboard', '3028.html'));
+        res.redirect('/console');
     } else {
-        res.redirect('/login.html'); 
+        res.redirect('/login');
     }
 });
 
 server.listen(PORT, () => {
 console.error(boldText(gradient.cristal(`[ Deploying Dashboard Bot Server Proxy is: ${PORT} ]`)));
 });
+
+// Export the server instance
+module.exports = server;

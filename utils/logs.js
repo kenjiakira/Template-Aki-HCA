@@ -6,6 +6,13 @@ const chalk = require('chalk');
 const gradient = require('gradient-string');
 const moment = require("moment-timezone");
 
+let io = null;
+
+// Add this function to initialize socket.io
+const initializeSocket = (socketIO) => {
+    io = socketIO;
+};
+
 const time = moment.tz("Asia/Ho_Chi_Minh").format("LLLL");
 let adminConfig = { adminUIDs: [], notilogs: true };
 let usersData = {};
@@ -29,6 +36,14 @@ const notifyAdmins = async (api, threadID, action, senderID) => {
 
         const notificationMessage = `🔔 𝗧𝗵𝗼̂𝗻𝗴 𝗯𝗮́𝗼 𝗗𝘂̛̃ 𝗟𝗶𝗲̣̂𝘂 𝗕𝗼𝘁\n━━━━━━━━━━━━━━━━━━\n📝 Bot đã ${action} khỏi nhóm ${groupName}\n🆔 ID nhóm: ${threadID}\n🕜 Thời gian: ${time}\n━━━━━━━━━━━━━━━━━━`;
 
+        if (io) {
+            io.emit('botLog', {
+                output: notificationMessage,
+                type: 'notification',
+                color: '#ff416c'
+            });
+        }
+
         if (Array.isArray(adminConfig.adminUIDs) && adminConfig.adminUIDs.length > 0) {
             for (const adminID of adminConfig.adminUIDs) {
                 
@@ -49,23 +64,48 @@ const logChatRecord = async (api, event) => {
     const logHeader = gradientText("━━━━━━━━━━[ CHUỖI CSDL NHẬT KÝ BOT ]━━━━━━━━━━");
 
     if (event.body) {
-        console.log(logHeader);
-        console.log(gradientText("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"));
-        console.log(`${boldText(gradientText(`┣➤ 🌐 Nhóm: ${groupName}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ 🆔 ID nhóm: ${threadID}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ 👤 ID Người dùng: ${senderID}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ ✉️ Nội dung: ${event.body}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ ⏰ Vào lúc: ${time}`))}`);
-        console.log(gradientText("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"));
+        const logMessage = [
+            logHeader,
+            "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+            `┣➤ 🌐 Nhóm: ${groupName}`,
+            `┣➤ 🆔 ID nhóm: ${threadID}`,
+            `┣➤ 👤 ID Người dùng: ${senderID}`,
+            `┣➤ ✉️ Nội dung: ${event.body}`,
+            `┣➤ ⏰ Vào lúc: ${time}`,
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        ].join('\n');
+
+        console.log(logMessage);
+        
+        // Emit to socket if available
+        if (io) {
+            io.emit('botLog', { 
+                output: logMessage,
+                type: 'chat',
+                color: '#00f2fe'
+            });
+        }
     } else if (event.attachments || event.stickers) {
-        console.log(logHeader);
-        console.log(gradientText("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"));
-        console.log(`${boldText(gradientText(`┣➤ 🌐 Nhóm: ${groupName}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ 🆔 ID nhóm: ${threadID}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ 👤 ID Người dùng: ${senderID}`))}`);
-        console.log(`${boldText(gradientText(`┣➤ 🖼️ Nội dung: ${userName} gửi một nhãn dán 🟢`))}`);
-        console.log(`${boldText(gradientText(`┣➤ ⏰ Vào lúc: ${time}`))}`);
-        console.log(gradientText("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"));
+        const logMessage = [
+            logHeader,
+            "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+            `┣➤ 🌐 Nhóm: ${groupName}`,
+            `┣➤ 🆔 ID nhóm: ${threadID}`,
+            `┣➤ 👤 ID Người dùng: ${senderID}`,
+            `┣➤ 🖼️ Nội dung: ${userName} gửi một nhãn dán 🟢`,
+            `┣➤ ⏰ Vào lúc: ${time}`,
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        ].join('\n');
+
+        console.log(logMessage);
+        
+        // Emit to socket if available
+        if (io) {
+            io.emit('commandOutput', { 
+                output: logMessage,
+                color: '#00f2fe'
+            });
+        }
     }
 };
 
@@ -119,5 +159,10 @@ const getUserName = async (api, userID) => {
     }
 };
 
-module.exports = { logChatRecord, notifyAdmins, handleBotAddition, handleBotRemoval };
- 
+module.exports = { 
+    logChatRecord, 
+    notifyAdmins, 
+    handleBotAddition, 
+    handleBotRemoval,
+    initializeSocket  // Export the new function
+};

@@ -26,7 +26,7 @@ module.exports = {
                 commandCode: commandCode
             });
         } else if (target[0] === "uninstall" && commandName) {
-            const filePath = `./cmds/${commandName}.js`;
+            const filePath = `./commands/${commandName}.js`;
 
             if (fs.existsSync(filePath)) {
                 const confirmationMessage = `⚠️ ${global.line}\nBạn có muốn gỡ cài đặt lệnh "${commandName}" không? Phản ứng (👍) để xác nhận hoặc (👎) để hủy bỏ.`;
@@ -42,7 +42,7 @@ module.exports = {
                 await api.sendMessage(`❌ Lệnh ${commandName} không tồn tại.`, threadID);
             }
         } else if (target[0] === "share" && commandName) {
-            const filePath = `./cmds/${commandName}.js`;
+            const filePath = `./commands/${commandName}.js`;
 
             if (fs.existsSync(filePath)) {
                 const commandCode = fs.readFileSync(filePath, 'utf-8');
@@ -80,7 +80,7 @@ module.exports = {
 
                 try {
                     new Function(commandCode);
-                    const filePath = `./cmds/${commandName}.js`;
+                    const filePath = `./commands/${commandName}.js`;
                     fs.writeFileSync(filePath, commandCode);
                     await api.editMessage(`✅ ${global.line}\nLệnh "${commandName}" đã được cài đặt thành công.`, checkMessage.messageID, threadID, event.messageID);
                     global.cc.reload[commandName];
@@ -88,7 +88,7 @@ module.exports = {
                     await api.editMessage(`❌ Không thể cài đặt lệnh. Lỗi: ${error.message}`, checkMessage.messageID, threadID);
                 }
             } else if (action === 'uninstall') {
-                const filePath = `./cmds/${commandName}.js`;
+                const filePath = `./commands/${commandName}.js`;
 
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);

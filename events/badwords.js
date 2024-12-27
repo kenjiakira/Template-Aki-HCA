@@ -1,21 +1,21 @@
 const path = require('path');
 const fs = require('fs');
 let badWordsActive = {}, bannedWords = {}, warnings = {};
-const saveFile = `./cmds/badwordsActive.json`;
+const saveFile = `./commands/badwordsActive.json`;
 
 if (fs.existsSync(saveFile)) {
   const words = JSON.parse(fs.readFileSync(saveFile, "utf8"));
   badWordsActive = words;
 }
 
-const saveWarnings = `./cmds/json/warnings.json`;
+const saveWarnings = `./commands/json/warnings.json`;
 
 if (fs.existsSync(saveWarnings)) {
   const warningsData = JSON.parse(fs.readFileSync(saveWarnings, "utf8"));
   warnings = warningsData;
 }
 
-const saveWarningsCount = `./cmds/json/warningsCount.json`;
+const saveWarningsCount = `./commands/json/warningsCount.json`;
 let warningsCount = {};
 if (fs.existsSync(saveWarningsCount)) {
   const warningsCountData = JSON.parse(fs.readFileSync(saveWarningsCount, "utf8"));
@@ -23,7 +23,7 @@ if (fs.existsSync(saveWarningsCount)) {
 }
 
 const loadBannedWords = threadID => {
-  const wordFile = `./cmds/database/${threadID}.json`;
+  const wordFile = `./commands/database/${threadID}.json`;
   if (fs.existsSync(wordFile)) {
     const words = JSON.parse(fs.readFileSync(wordFile, "utf8"));
     bannedWords[threadID] = words;

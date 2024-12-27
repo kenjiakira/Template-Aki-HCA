@@ -12,26 +12,37 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 module.exports = {
     name: "wiki",
-    info: "Tra cứu thông tin từ Wikipedia.",
+    info: "Tra cứu thông tin từ Wikipedia",
     dev: "HNT",
     onPrefix: true,
     dmUser: false,
     nickName: ["wiki", "wikipedia"],
-    usages: "wiki [từ khóa]",
+    usages: "wiki [en/vi] [từ khóa] | wiki [từ khóa]",
     cooldowns: 5,
 
     onLaunch: async function ({ api, event, target }) {
-        const searchTerm = target && target.length > 0 ? target.join(" ") : null; 
+        let lang = 'vi';
+        let searchTerm = null;
+
+        if (target && target.length > 0) {
+            if (target[0].toLowerCase() === 'en' || target[0].toLowerCase() === 'vi') {
+                lang = target[0].toLowerCase();
+                searchTerm = target.slice(1).join(" ");
+            } else {
+                searchTerm = target.join(" ");
+            }
+        }
+
         const outputPath = path.resolve(cacheDir, 'wiki_image.jpg');
 
         try {
             if (!searchTerm) {
-                const randomWikiArticle = await fetchRandomWikiArticle();
+                const randomWikiArticle = await fetchRandomWikiArticle(lang);
                 if (randomWikiArticle) {
                     if (randomWikiArticle.image && await checkImageUrl(randomWikiArticle.image)) {
                         await downloadImage(randomWikiArticle.image, outputPath);
                     }
-                    const message = `📚 Wikipedia: ${randomWikiArticle.title}\n\n${randomWikiArticle.extract}\n\nĐọc thêm: ${randomWikiArticle.url}\n\nBạn có thể tìm thêm thông tin bằng cách nhập wiki 'từ khóa'.`;
+                    const message = `📚 Wikipedia | Bài viết ngẫu nhiên\n\n${formatTitle(randomWikiArticle.title)}\n\n${formatContent(randomWikiArticle.extract)}\n\n🔗 Đọc thêm: ${randomWikiArticle.url}\n\n💡 Mẹo: Bạn có thể tìm kiếm bằng lệnh:\n• wiki [từ khóa] - Tìm bằng Tiếng Việt\n• wiki en [keyword] - Search in English`;
                     api.sendMessage({ body: message, attachment: [fs.createReadStream(outputPath)] }, event.threadID, () => {
                         try {
                             if (fs.existsSync(outputPath)) {
@@ -45,7 +56,7 @@ module.exports = {
                     api.sendMessage("Không thể tìm thấy thông tin ngẫu nhiên từ Wikipedia vào lúc này.", event.threadID);
                 }
             } else {
-                const apiUrl = `https://vi.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchTerm)}`;
+                const apiUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchTerm)}`;
                 for (let attempt = 1; attempt <= 3; attempt++) {
                     try {
                         const response = await axios.get(apiUrl);
@@ -83,13 +94,24 @@ module.exports = {
                 }
             }
         } catch (error) {
-            api.sendMessage(error.message, event.threadID);
+            api.sendMessage(`❌ Đã xảy ra lỗi: ${error.message}`, event.threadID);
         }
     }
 };
 
-async function fetchRandomWikiArticle(retries = 3) {
-    const apiUrl = `https://vi.wikipedia.org/api/rest_v1/page/random/summary`;
+function formatTitle(title) {
+    return `📌 ${title.toUpperCase()}`;
+}
+
+function formatContent(content) {
+    if (content.length > 2000) {
+        return content.substring(0, 1997) + "...";
+    }
+    return content;
+}
+
+async function fetchRandomWikiArticle(lang = 'vi', retries = 3) {
+    const apiUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/random/summary`;
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const response = await axios.get(apiUrl);
@@ -110,7 +132,7 @@ async function fetchRandomWikiArticle(retries = 3) {
                 throw new Error("Không thể truy xuất thông tin từ Wikipedia vào lúc này. Vui lòng thử lại sau.");
             }
             console.error(`Lỗi khi truy xuất thông tin: ${error.message}. Thử lại lần ${attempt}`);
-            await delay(2000);
+            await delay(2000);  
         }
     }
 }

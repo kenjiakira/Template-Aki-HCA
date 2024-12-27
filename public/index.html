@@ -5,70 +5,227 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bot Dashboard</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --dark-bg: #2c3e50;
+            --light-bg: #f5f7fa;
+            --card-shadow: 0 10px 20px rgba(0,0,0,0.08);
+            --hover-shadow: 0 15px 30px rgba(0,0,0,0.12);
+        }
+
         body {
-            background-color: #f0f8ff;
-            color: #333;
-            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, var(--light-bg) 0%, #c3cfe2 100%);
+            color: #2c3e50;
+            font-family: 'Poppins', sans-serif;
             position: relative;
             min-height: 100vh;
-            transition: background-color 1s ease, color 1s ease;
+            transition: all 0.5s ease;
         }
+
         body.dark {
-            background-color: #333;
-            color: #f0f8ff;
+            background: linear-gradient(135deg, var(--dark-bg) 0%, #3498db 100%);
+            color: #ecf0f1;
         }
+
         .container {
-            padding-bottom: 50px;
+            padding-bottom: 60px;
+            animation: fadeIn 0.5s ease;
+            max-width: 1200px;
         }
-        .watermark {
-            position: fixed;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0.5;
-            font-size: 12px;
-            background: rgba(255, 255, 255, 0.7);
-            padding: 5px 10px;
-            border-radius: 5px;
-        }
+
         .card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            transition: background-color 1s ease, color 1s ease;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--card-shadow);
+            margin-bottom: 25px;
+            transform: translateY(0);
+            transition: all 0.3s ease;
+            border-left: 5px solid var(--primary-color);
         }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--hover-shadow);
+        }
+
         .card.dark {
-            background-color: #444;
-            color: #f0f8ff;
+            background: rgba(52, 73, 94, 0.95);
+            color: #ecf0f1;
+            border-left: 5px solid var(--primary-color);
         }
-        .console-button {
-            margin-top: 20px;
-            background-color: #007bff;
+
+        .card-title {
+            color: var(--primary-color);
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            position: relative;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: var(--primary-color);
+            border-radius: 3px;
+        }
+
+        .btn-lightblue {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 30px;
+            padding: 12px 30px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            margin: 10px;
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-lightblue:hover {
+            background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
             color: white;
         }
-        .btn-lightblue {
-            background-color: #add8e6;
-            color: #333;
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
         }
-        .btn-lightblue:hover {
-            background-color: #87cefa;
+
+        .form-control {
+            border-radius: 15px;
+            border: 2px solid var(--primary-color);
+            padding: 12px 20px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
         }
+
+        .form-control:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+            transform: translateY(-1px);
+        }
+
         .response-time {
+            color: var(--danger-color);
             font-weight: bold;
+            background: rgba(231, 76, 60, 0.1);
+            padding: 3px 8px;
+            border-radius: 10px;
         }
+
+        .watermark {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0.9;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .watermark:hover {
+            opacity: 1;
+            transform: translateX(-50%) scale(1.05);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
         .toggle-btn {
             position: fixed;
-            top: 10px;
-            right: 10px;
-            background-color: transparent;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
             border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
             cursor: pointer;
             font-size: 24px;
-            transition: background-color 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            z-index: 1000;
         }
-        .toggle-btn:focus {
-            outline: none;
+
+        .toggle-btn:hover {
+            transform: rotate(360deg);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Stats styling */
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--primary-color);
+            background: rgba(52, 152, 219, 0.1);
+            padding: 5px 10px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .dark .stat-value {
+            background: rgba(52, 152, 219, 0.2);
+            color: #74b9ff;
+        }
+
+        /* Alert styling */
+        .alert {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        /* Animation keyframes */
+        @keyframes fadeIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .card {
+                margin: 10px 0;
+            }
+
+            .btn-lightblue {
+                padding: 10px 20px;
+                font-size: 0.9em;
+            }
         }
     </style>
 </head>
@@ -107,10 +264,46 @@
         <div class="text-center">
             <button class="btn btn-lightblue" data-toggle="modal" data-target="#restartModal">Restart Bot</button>
             <button class="btn btn-lightblue" onclick="window.location.href='/console'">Open Console</button>
+            <button class="btn btn-lightblue" data-toggle="modal" data-target="#helpModal">Help</button>
+            <button class="btn btn-lightblue" onclick="window.location.href='/logout'">Logout</button>
         </div>
     </div>
-    <div class="watermark" id="watermark">Bot Admin: Jonell Magallanes</div>
+    <div class="watermark" id="watermark">Bot Admin: HNT</div>
 
+    <!-- Add new Help Modal -->
+    <div class="modal fade" id="helpModal" tabindex="-1" role="dialog" aria-labelledby="helpModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="helpModalLabel">Help Guide</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <h6>Dashboard Controls:</h6>
+                    <ul>
+                        <li>Restart Bot - Restarts the bot system</li>
+                        <li>Open Console - Opens command console interface</li>
+                        <li>Help - Shows this help guide</li>
+                        <li>Logout - Logs out from dashboard</li>
+                    </ul>
+                    <h6>Dashboard Sections:</h6>
+                    <ul>
+                        <li>Basic Bot Info - Shows basic information about the bot</li>
+                        <li>Statistics - Displays bot usage statistics</li>
+                        <li>System Info - Shows system performance metrics</li>
+                    </ul>
+                    <p class="mt-3">For more detailed information or support, please contact the bot administrator.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Replace the old restartModal content with this -->
     <div class="modal fade" id="restartModal" tabindex="-1" role="dialog" aria-labelledby="restartModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
@@ -121,8 +314,13 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <p>Enter passcode to restart the bot:</p>
-                    <input type="password" id="passcodeInput" class="form-control" placeholder="Passcode">
+                    <div class="alert alert-warning">
+                        Warning: This will restart the bot. Please enter the passcode to confirm.
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="passcodeInput" class="form-control" placeholder="Enter passcode">
+                    </div>
+                    <div id="restartStatus" class="alert" style="display: none;"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -141,38 +339,74 @@
     <script>
         const socket = io();
 
+        function formatBytes(bytes) {
+            const mb = bytes / (1024 * 1024);
+            return mb.toFixed(2);
+        }
+
+        function updateMetrics() {
+            socket.emit('getSystemMetrics');
+        }
+
+        setInterval(updateMetrics, 5000);
+
         socket.on('updateStats', (data) => {
             document.getElementById('botName').innerText = data.botName;
             document.getElementById('prefix').innerText = data.prefix;
             document.getElementById('ownerName').innerText = data.ownerName;
-
-                        document.getElementById('os').innerText = data.os;
-        document.getElementById('commandsCount').innerText = data.commandsCount;
+            document.getElementById('os').innerText = data.os;
+            document.getElementById('commandsCount').innerText = data.commandsCount;
             document.getElementById('eventsCount').innerText = data.eventsCount;
             document.getElementById('threadsCount').innerText = data.threadsCount;
             document.getElementById('usersCount').innerText = data.usersCount;
-            document.getElementById('ram').innerText = data.ram;
-            document.getElementById('cpu').innerText = data.cpu;
-            document.getElementById('host').innerText = data.host;
+            document.getElementById('ram').innerText = formatBytes(data.ram);
+            document.getElementById('cpu').innerText = data.cpu.toFixed(2);
+            document.getElementById('host').innerText = data.host || 'N/A';
             document.getElementById('uptime').innerText = data.uptime;            
-
             document.getElementById('FCA').innerText = data.FCA;
             document.getElementById('responseTime').innerText = data.responseTime;
             document.getElementById('watermark').innerText = `Bot Admin: ${data.ownerName}`;
         });
 
-        document.getElementById('restartButton').addEventListener('click', () => {
+        socket.on('systemMetrics', (data) => {
+            document.getElementById('ram').innerText = formatBytes(data.ram);
+            document.getElementById('cpu').innerText = data.cpu.toFixed(2);
+            document.getElementById('host').innerText = data.host || 'N/A';
+        });
+
+        // Update the restart button handler
+        document.getElementById('restartButton').addEventListener('click', function() {
             const passcode = document.getElementById('passcodeInput').value;
+            const statusDiv = document.getElementById('restartStatus');
+            
+            if (!passcode) {
+                statusDiv.className = 'alert alert-danger';
+                statusDiv.textContent = 'Please enter a passcode';
+                statusDiv.style.display = 'block';
+                return;
+            }
+
+            statusDiv.className = 'alert alert-info';
+            statusDiv.textContent = 'Attempting to restart...';
+            statusDiv.style.display = 'block';
+            
+            // Emit restart event
             socket.emit('restartBot', passcode);
         });
 
         socket.on('restartSuccess', (message) => {
-            alert(message);
-            location.reload();
+            const statusDiv = document.getElementById('restartStatus');
+            statusDiv.className = 'alert alert-success';
+            statusDiv.textContent = message;
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
         });
 
         socket.on('restartFailed', (message) => {
-            alert(message);
+            const statusDiv = document.getElementById('restartStatus');
+            statusDiv.className = 'alert alert-danger';
+            statusDiv.textContent = message;
         });
 
         document.getElementById('toggleMode').addEventListener('click', () => {

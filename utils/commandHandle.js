@@ -22,10 +22,10 @@ const loadConfig = () => {
 
 const loadCommands = () => {
     const commands = {};
-    fs.readdirSync('./cmds').sort().forEach(file => {
+    fs.readdirSync('./commands').sort().forEach(file => {
         if (file.endsWith('.js')) {
             try {
-                const command = require(`../cmds/${file}`);
+                const command = require(`../commands/${file}`);
                 global.cc.commands[command.name] = {
                     name: command.name,
                     usedby: command.usedby,
@@ -43,7 +43,7 @@ const loadCommands = () => {
                             console.error(gradient.passion(`Không thể cài đặt Module ${missingModule}: ${err}`));
                         } else {
                             console.log(gradient.atlas(`Module ${missingModule} Cài đặt thành công.`));
-                            const command = require(`../cmds/${file}`);
+                            const command = require(`../commands/${file}`);
                             global.cc.commands[command.name] = {
                                 name: command.name,
                                 usedby: command.usedby,

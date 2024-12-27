@@ -3,27 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Dashboard Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #4facfe;
-            --secondary-color: #00f2fe;
-            --gradient-start: #0f172a;
-            --gradient-end: #1e293b;
-            --card-bg: rgba(255, 255, 255, 0.08);
-            --input-bg: rgba(255, 255, 255, 0.1);
+            --primary-color: #4d79ff;
+            --secondary-color: #3366ff;
+            --gradient-start: #1a1a2e;
+            --gradient-end: #16213e;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --input-bg: rgba(255, 255, 255, 0.08);
         }
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
             margin: 0;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(77, 121, 255, 0.1) 0%, transparent 50%);
+            animation: rotate 20s linear infinite;
         }
 
         .login-container {
@@ -31,15 +41,17 @@
             padding: 3.5rem;
             border-radius: 24px;
             backdrop-filter: blur(20px);
-            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
             width: 100%;
             max-width: 420px;
+            position: relative;
+            z-index: 1;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            animation: fadeIn 0.6s ease-out;
         }
 
         .login-header {
             text-align: center;
+            color: white;
             margin-bottom: 3rem;
         }
 
@@ -47,25 +59,20 @@
             font-weight: 600;
             font-size: 2.2rem;
             margin: 0;
-            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            background: linear-gradient(45deg, #4d79ff, #00ffff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             letter-spacing: 1px;
         }
 
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.8rem;
-        }
-
         .form-group {
             position: relative;
+            margin-bottom: 1.5rem;
         }
 
         input {
             width: 100%;
-            padding: 1rem 1.5rem;
+            padding: 1rem 1.2rem;
             border: 2px solid rgba(255, 255, 255, 0.1);
             border-radius: 14px;
             background: var(--input-bg);
@@ -73,14 +80,14 @@
             font-size: 1rem;
             font-family: 'Poppins', sans-serif;
             box-sizing: border-box;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s ease;
         }
 
         input:focus {
             outline: none;
             border-color: var(--primary-color);
-            background: rgba(255, 255, 255, 0.15);
-            box-shadow: 0 0 20px rgba(79, 172, 254, 0.15);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 20px rgba(77, 121, 255, 0.2);
         }
 
         input::placeholder {
@@ -89,6 +96,7 @@
         }
 
         button {
+            width: 100%;
             background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
             color: white;
             padding: 1rem;
@@ -98,21 +106,12 @@
             font-size: 1rem;
             font-weight: 600;
             font-family: 'Poppins', sans-serif;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s ease;
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            width: 100%;
+            margin-top: 1rem;
             position: relative;
             overflow: hidden;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(79, 172, 254, 0.4);
-        }
-
-        button:active {
-            transform: translateY(0);
         }
 
         button::before {
@@ -123,7 +122,7 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(
-                120deg,
+                90deg,
                 transparent,
                 rgba(255, 255, 255, 0.2),
                 transparent
@@ -135,23 +134,36 @@
             left: 100%;
         }
 
-        #error-message {
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(77, 121, 255, 0.4);
+        }
+
+        .error-message {
             color: #ff6b6b;
             text-align: center;
             margin-top: 1.2rem;
-            display: none;
-            padding: 0.8rem;
+            padding: 12px;
             border-radius: 10px;
             background: rgba(255, 107, 107, 0.1);
+            display: none;
             font-size: 0.9rem;
             border: 1px solid rgba(255, 107, 107, 0.2);
-            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @keyframes fadeIn {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(20px);
             }
             to {
                 opacity: 1;
@@ -159,64 +171,36 @@
             }
         }
 
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
+        .login-container {
+            animation: fadeIn 0.6s ease-out;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
         <div class="login-header">
-            <h2>Login</h2>
+            <h2>Dashboard Login</h2>
         </div>
-        <form id="loginForm" class="login-form">
+        <form class="login-form" action="/login" method="POST">
             <div class="form-group">
-                <input type="text" id="username" name="username" placeholder="Username" required>
+                <input type="text" name="username" placeholder="Username" required autocomplete="off">
             </div>
             <div class="form-group">
-                <input type="password" id="password" name="password" placeholder="Password" required>
+                <input type="password" name="password" placeholder="Password" required>
             </div>
             <button type="submit">Login</button>
-            <div id="error-message"></div>
         </form>
+        <div class="error-message" id="error"></div>
     </div>
 
     <script>
-        document.getElementById('loginForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-
-            fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password })
-            })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
-                } else {
-            const errorMessage = document.getElementById('error-message');
-            errorMessage.textContent = 'Unauthorized access. Please check your credentials.';
-            errorMessage.style.display = 'block';
-        }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-        });
-
         const urlParams = new URLSearchParams(window.location.search);
         const error = urlParams.get('error');
         if (error) {
-    const errorMessage = document.getElementById('error-message');
-    errorMessage.textContent = error;
-    errorMessage.style.display = 'block'; 
-}
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = error;
+            errorDiv.style.display = 'block';
+        }
     </script>
 </body>
 </html>

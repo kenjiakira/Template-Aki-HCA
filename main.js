@@ -55,8 +55,8 @@ global.cc = {
 
 global.cc.reloadCommand = function (commandName) {
     try {
-        delete require.cache[require.resolve(`./cmds/${commandName}.js`)];
-        const reloadedCommand = require(`./cmds/${commandName}.js`);
+        delete require.cache[require.resolve(`./commands/${commandName}.js`)];
+        const reloadedCommand = require(`./commands/${commandName}.js`);
         global.cc.module.commands[commandName] = reloadedCommand;
         console.log(boldText(gradient.cristal(`[ ${commandName} ] Command reloaded successfully.`)));
         return true;
@@ -74,10 +74,10 @@ global.cc.reload = new Proxy(global.cc.reload, {
 
 const loadCommands = () => {
     const commands = {};
-    fs.readdirSync("./cmds").sort().forEach(file => {
+    fs.readdirSync("./commands").sort().forEach(file => {
         if (file.endsWith(".js")) {
             try {
-                const command = require(`./cmds/${file}`);
+                const command = require(`./commands/${file}`);
                 commands[command.name] = command;
                 console.log(boldText(gradient.cristal(`[ ${command.name} ] Successfully Deployed Command`)));
             } catch (error) {
@@ -87,7 +87,7 @@ const loadCommands = () => {
                     exec(`npm install ${missingModule}`, (err) => {
                         if (!err) {
                             console.log(boldText(gradient.atlas(`Module ${missingModule} installed successfully.`)));
-                            const command = require(`./cmds/${file}`);
+                            const command = require(`./commands/${file}`);
                             commands[command.name] = command;
                             console.log(boldText(gradient.cristal(`[ ${command.name} ] Successfully Deployed Command`)));
                         }
