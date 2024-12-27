@@ -7,180 +7,204 @@ module.exports = {
     name: "Tên lệnh",
     info: "Mô tả lệnh",
     dev: "Tác giả",
-    onPrefix: true, // hoặc false
-    dmUser: false, // true hoặc false
-    nickName: ["bí danh1", "bí danh2"], // mảng bí danh
+    onPrefix: true, // Lệnh có yêu cầu tiền tố (true) hay không (false)
+    dmUser: false, // Có thể chạy trong tin nhắn trực tiếp (true) hay không (false)
+    nickName: ["bí danh1", "bí danh2"], // Các tên gọi khác của lệnh
     usages: "Hướng dẫn sử dụng",
-    cooldowns: 10, // thời gian hồi (cooldown) tính bằng giây
+    cooldowns: 10, // Thời gian hồi (cooldown) tính bằng giây
     onLaunch: async function ({ api, event, actions }) {
-        // Logic lệnh ở đây
+        // Logic chính của lệnh
     }
 };
 ```
 
-### onLaunch
-Hàm `onLaunch` được thực thi khi lệnh được gọi. Nó có thể xử lý các nhiệm vụ khởi tạo và phản hồi sự kiện.
+## Mô tả hàm
+
+### `onLaunch`
+Hàm chính được gọi khi lệnh kích hoạt. Dùng để xử lý và gửi phản hồi theo ngữ cảnh.
 
 **Ví dụ:**
 ```javascript
-onLaunch: async function ({ api, event, actions }) {
-    const message = "Lệnh đã được thực thi!";
-    await actions.reply(message);
+onLaunch: async function ({ api, event, target }) {
+    const userInput = target[0];
+    if (!userInput) {
+        return actions.reply("Vui lòng cung cấp thông tin cần thiết.");
+    }
+    await actions.reply(`Bạn đã nhập: ${userInput}`);
 }
 ```
 
-### onEvents với đối số target
-Hàm `onEvents với Target` được kích hoạt với các đối số, bao gồm cả mục tiêu.
+### `onEvents`
+Hàm này xử lý các sự kiện bổ sung, ví dụ như các đối số hoặc thao tác từ người dùng.
 
 **Ví dụ:**
 ```javascript
 onEvents: async function ({ api, event, target }) {
-    const targetText = target.join(" ");
-    if (!targetText) return actions.reply("Cung cấp văn bản");
-    // Logic hàm ở đây 
+    if (target.length === 0) {
+        return actions.reply("Bạn cần nhập thêm thông tin.");
+    }
+    await actions.reply(`Thông tin nhận được: ${target.join(", ")}`);
 }
 ```
 
-### onReply
-Hàm `onReply` được thực thi khi người dùng phản hồi một tin nhắn cụ thể. Điều này cho phép phản hồi theo ngữ cảnh.
+### `onReply`
+Hàm này kích hoạt khi người dùng phản hồi một tin nhắn cụ thể. 
 
 **Ví dụ:**
 ```javascript
 onReply: async function ({ reply, api, event }) {
-    const response = `Bạn đã nói: ${reply}`;
-    await actions.reply(response);
+    const userResponse = reply.body;
+    await actions.reply(`Bạn vừa phản hồi: ${userResponse}`);
 }
 ```
 
-### callReact
-Hàm `callReact` được gọi khi người dùng phản ứng với một tin nhắn. Nó cho phép thực hiện các hành động xác nhận hoặc xử lý các phản ứng.
+### `callReact`
+Hàm thực hiện các hành động khi người dùng thả biểu cảm (reaction) vào tin nhắn bot.
 
 **Ví dụ:**
 ```javascript
 callReact: async function ({ reaction, event, api }) {
     if (reaction === '👍') {
-        await actions.reply("Đã xác nhận!");
-    } else if (reaction === '👎') {
-        await actions.reply("Đã hủy bỏ.");
+        await actions.reply("Cảm ơn bạn đã ủng hộ!");
+    } else {
+        await actions.reply("Phản hồi của bạn đã được ghi nhận.");
     }
 }
 ```
 
-### noPrefix
-Hàm `noPrefix` cho phép lệnh được thực thi mà không cần tiền tố, hữu ích cho các tương tác tự nhiên hơn.
+### `noPrefix`
+Hàm cho phép lệnh hoạt động mà không cần dùng tiền tố.
 
 **Ví dụ:**
 ```javascript
 noPrefix: async function ({ api, event }) {
-    await actions.reply("Lệnh này có thể được thực thi mà không cần tiền tố.");
+    await actions.reply("Lệnh này không yêu cầu tiền tố để chạy.");
 }
 ```
 
-## Hành động
+## **Cấu trúc `Currencies`**
 
-Đối tượng `actions` cung cấp các phương thức để phản hồi các tương tác của người dùng.
+Đối tượng `Currencies` được sử dụng để quản lý số dư và giao dịch của người dùng. Thường được dùng trong các lệnh như `daily`, `balance`, hoặc các hệ thống giao dịch khác trong bot.
 
-### Phản hồi tin nhắn
-Phản hồi trực tiếp cho người dùng.
+### **Thuộc tính chính**
+
 ```javascript
-actions.reply("Xin chào!");
-```
-
-### Gửi tin nhắn
-Gửi một tin nhắn đến cuộc trò chuyện.
-```javascript
-actions.send("Xin chào, mọi người!");
-```
-
-### Phản ứng với tin nhắn
-Phản ứng với tin nhắn hiện tại bằng một emoji.
-```javascript
-actions.react("🔥");
-```
-
-### Chỉnh sửa tin nhắn
-Chỉnh sửa một tin nhắn đã được gửi trước đó.
-```javascript
-const loading = await actions.reply("Đang tải...");
-actions.edit("Xin chào", loading.messageID);
-```
-
-### Đá người dùng
-Xóa một người dùng khỏi nhóm.
-```javascript
-actions.kick(userID);
-```
-
-### Rời khỏi nhóm
-Xóa bot khỏi nhóm hiện tại.
-```javascript
-actions.leave();
-```
-
-### Chia sẻ liên hệ
-Chia sẻ một liên hệ với một người dùng cụ thể.
-```javascript
-actions.share(contact, senderID);
-```
-
-## Sử dụng bí danh và dmUser
-
-### Bí danh
-Bạn có thể sử dụng các bí danh cho các lệnh bằng cách định nghĩa thuộc tính `nickName` trong đối tượng lệnh của bạn. Điều này cho phép nhiều tên cho cùng một lệnh.
-
-**Ví dụ:**
-```javascript
-module.exports = {
-    name: "test",
-    nickName: ["test", "testing"],
-    onLaunch: async function ({ api, event, actions }) {
-        await actions.reply("Đây là một lệnh kiểm tra.");
+global.currencies = {
+    userID: {
+        balance: 0, // Số Gems hiện tại của người dùng
+        lastTransaction: 0, // Thời điểm giao dịch gần nhất (Unix timestamp)
+        transactions: [] // Danh sách lịch sử giao dịch
     },
-    // các thuộc tính khác...
+    saveData: function() {
+        // Lưu trạng thái hiện tại của currencies vào tệp JSON
+    },
+    loadData: function() {
+        // Tải dữ liệu currencies từ tệp JSON
+    }
 };
 ```
 
-### dmUser
-Thuộc tính `dmUser` cho biết liệu một lệnh có thể được thực hiện thông qua tin nhắn trực tiếp hay không. Nếu `dmUser` là `true`, lệnh có thể được sử dụng trong tin nhắn trực tiếp.
+### **Các phương thức hỗ trợ**
 
-**Ví dụ:**
+#### **Thêm số dư**
+```javascript
+function addBalance(userID, amount) {
+    if (!global.currencies[userID]) {
+        global.currencies[userID] = { balance: 0, lastTransaction: 0, transactions: [] };
+    }
+    global.currencies[userID].balance += amount;
+    global.currencies[userID].lastTransaction = Date.now();
+    global.currencies[userID].transactions.push({ type: "add", amount, timestamp: Date.now() });
+    global.currencies.saveData();
+}
+```
+
+#### **Trừ số dư**
+```javascript
+function subtractBalance(userID, amount) {
+    if (!global.currencies[userID] || global.currencies[userID].balance < amount) {
+        throw new Error("Số dư không đủ!");
+    }
+    global.currencies[userID].balance -= amount;
+    global.currencies[userID].lastTransaction = Date.now();
+    global.currencies[userID].transactions.push({ type: "subtract", amount, timestamp: Date.now() });
+    global.currencies.saveData();
+}
+```
+
+#### **Lấy số dư**
+```javascript
+function getBalance(userID) {
+    return global.currencies[userID]?.balance || 0;
+}
+```
+
+#### **Xem lịch sử giao dịch**
+```javascript
+function getTransactions(userID) {
+    return global.currencies[userID]?.transactions || [];
+}
+```
+
+### **Sử dụng trong lệnh**
+#### **Ví dụ lệnh `balance`**
 ```javascript
 module.exports = {
-    name: "example",
-    dmUser: true,
-    onLaunch: async function ({ api, event, actions }) {
-        await actions.reply("Lệnh này có thể được thực hiện trong tin nhắn trực tiếp.");
-    },
-    // các thuộc tính khác...
+    name: "balance",
+    info: "Kiểm tra số dư Gems",
+    onLaunch: async function({ api, event }) {
+        const { threadID, senderID } = event;
+        const balance = getBalance(senderID);
+        return api.sendMessage(`» Số dư hiện tại của bạn: ${balance.toLocaleString('vi-VN')} Gems.`, threadID);
+    }
 };
 ```
 
-## Tùy chọn toàn cục
+## Cách sử dụng
 
+### Ví dụ thực tế
+
+### Lệnh `ping`
+**Cấu trúc:**
 ```javascript
- global.cc.prefix
- global.cc.botName
- global.cc.ownerName
- global.cc.adminUIDs
- global.cc.moderatorUIDs
- global.cc.proxy
- // vv. global.cc // bắt đầu cấu hình của bạn
+module.exports = {
+    name: "ping",
+    info: "Kiểm tra tốc độ phản hồi của bot",
+    dev: "Bot Team",
+    onPrefix: true,
+    usages: "ping",
+    cooldowns: 3,
+    onLaunch: async function ({ actions }) {
+        const startTime = Date.now();
+        await actions.reply("🏓 Pong!");
+        const endTime = Date.now();
+        const latency = endTime - startTime;
+        await actions.reply(`⏱️ Độ trễ: ${latency}ms`);
+    }
+};
 ```
 
-## Phông chữ
+## Tùy chọn bổ sung
 
+### Thuộc tính toàn cục (Global Options)
 ```javascript
- //ví dụ
- const bold = global.fonts.bold("xin chào")
- actions.reply(bold)
+global.cc.prefix // Tiền tố mặc định của bot
+global.cc.botName // Tên bot
+global.cc.ownerName // Tên chủ sở hữu bot
+global.cc.adminUIDs // Danh sách UID của quản trị viên
+global.cc.proxy // Proxy nếu cần thiết
 ```
 
+### Tùy chỉnh phông chữ
+```javascript
+const bold = global.fonts.bold("Văn bản đậm");
+actions.reply(bold);
+```
 
-### Tóm tắt
+## Tóm tắt
+- Cấu trúc lệnh: Tạo module với các thuộc tính cơ bản (`name`, `info`, `onLaunch`, v.v.).
+- Hỗ trợ các sự kiện như phản hồi (`onReply`), thả reaction (`callReact`).
+- Hành động hỗ trợ: `reply`, `react`, `edit`, `kick`, `leave`, và nhiều hơn nữa.
+- Dễ dàng mở rộng với các tùy chỉnh toàn cục và bí danh (`nickName`).
 
-Tài liệu này cung cấp cái nhìn tổng quan về cách triển khai và sử dụng các lệnh trong bot của bạn. Nó nhấn mạnh các phương thức xử lý sự kiện và chức năng hành động để phản hồi các tương tác của người dùng. Đảm bảo làm theo cấu trúc và các ví dụ để tích hợp các lệnh mới một cách hiệu quả.
-
-
-Cảm ơn và dành tặng Kaguya Teams, Cc Projects và Cộng đồng Chatbot.
-
-Tài liệu này cung cấp tổng quan về cách triển khai và sử dụng các lệnh trong bot của bạn. Nó làm nổi bật các phương pháp xử lý sự kiện và chức năng hành động để đáp ứng các tương tác của người dùng. Đảm bảo tuân theo cấu trúc và ví dụ để tích hợp các lệnh mới một cách hiệu quả.
+Cảm ơn Kaguya Teams và cộng đồng phát triển Chatbot vì đã tạo nguồn cảm hứng!
