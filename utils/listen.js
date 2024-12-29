@@ -1,4 +1,3 @@
-
 const fs = require("fs");
 const axios = require('axios');
 const gradient = require('gradient-string');
@@ -12,7 +11,11 @@ const { logChatRecord, notifyAdmins } = require('./logs');
 const threadsDB = JSON.parse(fs.readFileSync("./database/threads.json", "utf8") || "{}");
 const usersDB = JSON.parse(fs.readFileSync("./database/users.json", "utf8") || "{}");
 const cooldowns = {};
-global.client = global.client || { callReact: [], onReply: [] };
+global.client = global.client || { 
+    callReact: [], 
+    handleReply: [], // Initialize handleReply array
+    onReply: [] 
+};
 global.bot = { usersDB, threadsDB };
 global.line = "━━━━━━━━━━━━━━━━━━";
 
@@ -110,21 +113,55 @@ const handleListenEvents = (api, commands, eventCommands, threadsDB, usersDB) =>
                 }
             }
 
-            if (isPrefixed && commandName === '') {
-                const notFoundMessage = `Không tìm thấy lệnh. Vui lòng nhập ${adminConfig.prefix}help xem tất cả các lệnh.`;
-                return api.sendMessage(notFoundMessage, threadID);
-            }
+const allCommands = Object.keys(commands).concat(Object.values(commands).flatMap(cmd => cmd.aliases || []));
+if (isPrefixed) {
+    if (commandName === '') {
+        const notFoundMessage = `Không tìm thấy lệnh. Vui lòng nhập ${adminConfig.prefix}help để xem tất cả các lệnh.`;
+        return api.sendMessage(notFoundMessage, threadID);
+    }
 
-            const allCommands = Object.keys(commands).concat(Object.values(commands).flatMap(cmd => cmd.aliases || []));
-            if (isPrefixed && commandName !== '' && !allCommands.includes(commandName)) {
-                const notFoundMessage = `Lệnh "${commandName}" không tìm thấy. Vui lòng nhập ${adminConfig.prefix}help để xem tất cả các lệnh có sẵn.`;
-                return api.sendMessage(notFoundMessage, threadID, (err, info) => {
-                    if (!err) {
-                        setTimeout(() => api.unsendMessage(info.messageID), 20000);
+    if (!allCommands.includes(commandName)) {
+        const findSimilarCommands = (cmdName) => {
+            const calculateLevenshteinDistance = (a, b) => {
+                const tmp = [];
+                for (let i = 0; i <= a.length; i++) {
+                    tmp[i] = [i];
+                }
+                for (let j = 0; j <= b.length; j++) {
+                    tmp[0][j] = j;
+                }
+                for (let i = 1; i <= a.length; i++) {
+                    for (let j = 1; j <= b.length; j++) {
+                        tmp[i][j] = Math.min(
+                            tmp[i - 1][j] + 1,
+                            tmp[i][j - 1] + 1,
+                            tmp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+                        );
                     }
-                });
+                }
+                return tmp[a.length][b.length];
+            };
+
+            return allCommands
+                .map(cmd => ({ cmd, distance: calculateLevenshteinDistance(cmdName, cmd) }))
+                .filter(({ distance }) => distance <= 3)
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 3)
+                .map(({ cmd }) => cmd)
+                .join(', ') || 'Không có lệnh tương tự.';
+        };
+
+        const similarCommands = findSimilarCommands(commandName);
+        const suggestionMessage = similarCommands ? `Bạn có thể đã nhập sai lệnh, thử: ${similarCommands}` : '';
+
+        return api.sendMessage(suggestionMessage, threadID, (err, info) => {
+            if (!err) {
+                setTimeout(() => api.unsendMessage(info.messageID), 20000);
             }
-//don't steal the code okay because i add secret gban
+        });
+    }
+}
+            
             const command = commands[commandName] || Object.values(commands).find(cmd => cmd.nickName && cmd.nickName.includes(commandName));
 
             if (command) {
@@ -136,7 +173,7 @@ const handleListenEvents = (api, commands, eventCommands, threadsDB, usersDB) =>
                     api.sendMessage(`Lệnh này yêu cầu prefix: ${adminConfig.prefix}${command.name}`, event.threadID);
                     return;
                 } else if (!command.onPrefix && isPrefixed) {
-                    api.sendMessage(`Lệnh này không yêu cầu prefix: ${command.name}`, event.threadID);
+                    api.sendMessage(`Lệnh này không yêu cầu prefix:\n bỏ dấu đi gõ '${command.name}'`, event.threadID);
                     return;
                 }
 
@@ -204,8 +241,9 @@ const handleListenEvents = (api, commands, eventCommands, threadsDB, usersDB) =>
 
 //callReact
 
-        const _0xb4166e=_0x1194;function _0x1194(_0x54c3af,_0x26fb8d){const _0x3c1e5b=_0x3c1e();return _0x1194=function(_0x119471,_0x3e48e2){_0x119471=_0x119471-0x1ca;let _0x3de70d=_0x3c1e5b[_0x119471];return _0x3de70d;},_0x1194(_0x54c3af,_0x26fb8d);}function _0x3c1e(){const _0x38b079=['40UibrRH','3fCwOxn','messageID','5459360oYBTLJ','function','reaction','4131050iIHCJi','callReact','client','Error\x20executing\x20callReact\x20for\x20command\x20','110685wDZyzu','type','passion','name','1030066idmiPQ','28eBnnvq','1315600IzRDSP','36LOPhxy','1628898rkkqyT','error','1144881szNwtI'];_0x3c1e=function(){return _0x38b079;};return _0x3c1e();}(function(_0x1c3ac8,_0x41d081){const _0xb4ff8=_0x1194,_0x5251c9=_0x1c3ac8();while(!![]){try{const _0x58b200=parseInt(_0xb4ff8(0x1d8))/0x1+-parseInt(_0xb4ff8(0x1d6))/0x2*(parseInt(_0xb4ff8(0x1de))/0x3)+-parseInt(_0xb4ff8(0x1d9))/0x4*(-parseInt(_0xb4ff8(0x1d2))/0x5)+parseInt(_0xb4ff8(0x1da))/0x6*(-parseInt(_0xb4ff8(0x1d7))/0x7)+parseInt(_0xb4ff8(0x1dd))/0x8*(parseInt(_0xb4ff8(0x1dc))/0x9)+parseInt(_0xb4ff8(0x1cb))/0xa+-parseInt(_0xb4ff8(0x1ce))/0xb;if(_0x58b200===_0x41d081)break;else _0x5251c9['push'](_0x5251c9['shift']());}catch(_0x316ba6){_0x5251c9['push'](_0x5251c9['shift']());}}}(_0x3c1e,0xafdab));if(event[_0xb4166e(0x1d3)]==='message_reaction'){const reactedMessage=global[_0xb4166e(0x1d0)][_0xb4166e(0x1cf)]['find'](_0x251cfb=>_0x251cfb[_0xb4166e(0x1ca)]===event[_0xb4166e(0x1ca)]);if(reactedMessage){const command=commands[reactedMessage[_0xb4166e(0x1d5)]];if(command&&typeof command[_0xb4166e(0x1cf)]===_0xb4166e(0x1cc))try{await command[_0xb4166e(0x1cf)]({'reaction':event[_0xb4166e(0x1cd)],'api':api,'event':event,'actions':actions});}catch(_0x527c9e){console[_0xb4166e(0x1db)](gradient[_0xb4166e(0x1d4)](_0xb4166e(0x1d1)+reactedMessage[_0xb4166e(0x1d5)]+':\x20'+_0x527c9e));}}
-                  }
+const _0xb4166e=_0x1194;function _0x1194(_0x54c3af,_0x26fb8d){const _0x3c1e5b=_0x3c1e();return _0x1194=function(_0x119471,_0x3e48e2){_0x119471=_0x119471-0x1ca;let _0x3de70d=_0x3c1e5b[_0x119471];return _0x3de70d;},_0x1194(_0x54c3af,_0x26fb8d);}function _0x3c1e(){const _0x38b079=['40UibrRH','3fCwOxn','messageID','5459360oYBTLJ','function','reaction','4131050iIHCJi','callReact','client','Error\x20executing\x20callReact\x20for\x20command\x20','110685wDZyzu','type','passion','name','1030066idmiPQ','28eBnnvq','1315600IzRDSP','36LOPhxy','1628898rkkqyT','error','1144881szNwtI'];_0x3c1e=function(){return _0x38b079;};return _0x3c1e();}(function(_0x1c3ac8,_0x41d081){const _0xb4ff8=_0x1194,_0x5251c9=_0x1c3ac8();while(!![]){try{const _0x58b200=parseInt(_0xb4ff8(0x1d8))/0x1+-parseInt(_0xb4ff8(0x1d6))/0x2*(parseInt(_0xb4ff8(0x1de))/0x3)+-parseInt(_0xb4ff8(0x1d9))/0x4*(-parseInt(_0xb4ff8(0x1d2))/0x5)+parseInt(_0xb4ff8(0x1da))/0x6*(-parseInt(_0xb4ff8(0x1d7))/0x7)+parseInt(_0xb4ff8(0x1dd))/0x8*(parseInt(_0xb4ff8(0x1dc))/0x9)+parseInt(_0xb4ff8(0x1cb))/0xa+-parseInt(_0xb4ff8(0x1ce))/0xb;if(_0x58b200===_0x41d081)break;else _0x5251c9['push'](_0x5251c9['shift']());}catch(_0x316ba6){_0x5251c9['push'](_0x5251c9['shift']());}}}(_0x3c1e,0xafdab));if(event[_0xb4166e(0x1d3)]==='message_reaction'){const reactedMessage=global[_0xb4166e(0x1d0)][_0xb4166e(0x1cf)]['find'](_0x251cfb=>_0x251cfb[_0xb4166e(0x1ca)]===event[_0xb4166e(0x1ca)]);if(reactedMessage){const command=commands[reactedMessage[_0xb4166e(0x1d5)]];if(command&&typeof command[_0xb4166e(0x1cf)]===_0xb4166e(0x1cc))try{await command[_0xb4166e(0x1cf)]({'reaction':event[_0xb4166e(0x1cd)],'api':api,'event':event,'actions':actions});}catch(_0x527c9e){console[_0xb4166e(0x1db)](gradient[_0xb4166e(0x1d4)](_0xb4166e(0x1d1)+reactedMessage[_0xb4166e(0x1d5)]+':\x20'+_0x527c9e));}}
+}
+
         //onEvents
                    for (const eventName in eventCommands) {
                   const eventCommand = eventCommands[eventName];

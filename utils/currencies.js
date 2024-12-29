@@ -99,29 +99,43 @@ function loadQuy() {
     }
 }
 
+function getVNDate() {
+    const vietnamTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    return vietnamTime.toDateString();
+}
+
+function checkDayReset(userQuests) {
+    const todayVN = getVNDate();
+    const lastReset = userQuests.lastReset ? new Date(userQuests.lastReset).toDateString() : null;
+    
+    if (lastReset !== todayVN) {
+        userQuests.progress = {};
+        userQuests.completed = {};
+        userQuests.lastReset = todayVN;
+        userQuests.lastRewardClaim = null;
+        saveQuestProgress();
+        return true;
+    }
+    return false;
+}
+
 function getUserQuests(userID) {
     if (!global.userQuests[userID]) {
         global.userQuests[userID] = {
             progress: {},
             completed: {},
-            lastReset: new Date().toDateString(),
+            lastReset: getVNDate(),
             lastRewardClaim: null
         };
         saveQuestProgress();
+    } else {
+        checkDayReset(global.userQuests[userID]);
     }
     return global.userQuests[userID];
 }
 
 function updateQuestProgress(userID, questType, amount = 1) {
     const userQuests = getUserQuests(userID);
-    const today = new Date().toDateString();
-    
-    if (userQuests.lastReset !== today) {
-        userQuests.progress = {};
-        userQuests.completed = {};
-        userQuests.lastReset = today;
-    }
-
     if (!userQuests.progress[questType]) {
         userQuests.progress[questType] = 0;
     }
@@ -141,17 +155,17 @@ function saveQuy(quy) {
 
 function canClaimRewards(userID) {
     const userQuests = getUserQuests(userID);
-    const today = new Date().toDateString();
-    return !userQuests.lastRewardClaim || userQuests.lastRewardClaim !== today;
+    const todayVN = getVNDate();
+    return !userQuests.lastRewardClaim || userQuests.lastRewardClaim !== todayVN;
 }
 
 function setRewardClaimed(userID) {
     const userQuests = getUserQuests(userID);
-    userQuests.lastRewardClaim = new Date().toDateString();
+    userQuests.lastRewardClaim = getVNDate();
     saveQuestProgress();
 }
 
 loadData(); 
 loadQuestProgress();
 
-module.exports = { getBalance, setBalance, saveData, loadData, updateBalance, changeBalance, allBalances, saveQuy, loadQuy, loadQuests, getUserQuests, updateQuestProgress, canClaimRewards, setRewardClaimed, loadQuestProgress, saveQuestProgress };
+module.exports = { getBalance, setBalance, saveData, loadData, updateBalance, changeBalance, allBalances, saveQuy, loadQuy, loadQuests, getUserQuests, updateQuestProgress, canClaimRewards, setRewardClaimed, loadQuestProgress, saveQuestProgress, checkDayReset, getVNDate };
