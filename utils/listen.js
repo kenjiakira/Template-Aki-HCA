@@ -13,7 +13,7 @@ const usersDB = JSON.parse(fs.readFileSync("./database/users.json", "utf8") || "
 const cooldowns = {};
 global.client = global.client || { 
     callReact: [], 
-    handleReply: [], // Initialize handleReply array
+    handleReply: [],
     onReply: [] 
 };
 global.bot = { usersDB, threadsDB };
@@ -27,6 +27,19 @@ try {
     adminConfig = JSON.parse(fs.readFileSync(adminConfigPath, "utf8"));
 } catch (err) {
     console.error(err);
+}
+
+function getThreadPrefix(threadID) {
+    const prefixPath = './database/threadPrefix.json';
+    try {
+        if (fs.existsSync(prefixPath)) {
+            const threadPrefixes = JSON.parse(fs.readFileSync(prefixPath, 'utf8'));
+            return threadPrefixes[threadID] || global.cc.prefix;
+        }
+    } catch (err) {
+        console.error("Error loading thread prefix:", err);
+    }
+    return global.cc.prefix;
 }
 
 const handleListenEvents = (api, commands, eventCommands, threadsDB, usersDB) => {
@@ -95,9 +108,10 @@ const handleListenEvents = (api, commands, eventCommands, threadsDB, usersDB) =>
             const senderID = event.senderID;
             const threadID = event.threadID;
             const message = event.body.trim();
-            const isPrefixed = message.startsWith(adminConfig.prefix);
-            const commandName = (isPrefixed ? message.slice(adminConfig.prefix.length).split(' ')[0] : message.split(' ')[0]).toLowerCase();
-            const commandArgs = isPrefixed ? message.slice(adminConfig.prefix.length).split(' ').slice(1) : message.split(' ').slice(1);
+            const threadPrefix = getThreadPrefix(threadID);
+            const isPrefixed = message.startsWith(threadPrefix);
+            const commandName = (isPrefixed ? message.slice(threadPrefix.length).split(' ')[0] : message.split(' ')[0]).toLowerCase();
+            const commandArgs = isPrefixed ? message.slice(threadPrefix.length).split(' ').slice(1) : message.split(' ').slice(1);
 
             if (!usersDB[senderID]) {
                 usersDB[senderID] = { lastMessage: Date.now() };
@@ -115,50 +129,27 @@ const handleListenEvents = (api, commands, eventCommands, threadsDB, usersDB) =>
 
 const allCommands = Object.keys(commands).concat(Object.values(commands).flatMap(cmd => cmd.aliases || []));
 if (isPrefixed) {
-    if (commandName === '') {
-        const notFoundMessage = `Không tìm thấy lệnh. Vui lòng nhập ${adminConfig.prefix}help để xem tất cả các lệnh.`;
-        return api.sendMessage(notFoundMessage, threadID);
-    }
+    const notfoundCommand = commands['notfound'];
+    if (notfoundCommand) {
+        if (commandName === '') {
+            return notfoundCommand.handleNotFound({
+                api,
+                event,
+                commandName: '',
+                prefix: threadPrefix,
+                allCommands
+            });
+        }
 
-    if (!allCommands.includes(commandName)) {
-        const findSimilarCommands = (cmdName) => {
-            const calculateLevenshteinDistance = (a, b) => {
-                const tmp = [];
-                for (let i = 0; i <= a.length; i++) {
-                    tmp[i] = [i];
-                }
-                for (let j = 0; j <= b.length; j++) {
-                    tmp[0][j] = j;
-                }
-                for (let i = 1; i <= a.length; i++) {
-                    for (let j = 1; j <= b.length; j++) {
-                        tmp[i][j] = Math.min(
-                            tmp[i - 1][j] + 1,
-                            tmp[i][j - 1] + 1,
-                            tmp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
-                        );
-                    }
-                }
-                return tmp[a.length][b.length];
-            };
-
-            return allCommands
-                .map(cmd => ({ cmd, distance: calculateLevenshteinDistance(cmdName, cmd) }))
-                .filter(({ distance }) => distance <= 3)
-                .sort((a, b) => a.distance - b.distance)
-                .slice(0, 3)
-                .map(({ cmd }) => cmd)
-                .join(', ') || 'Không có lệnh tương tự.';
-        };
-
-        const similarCommands = findSimilarCommands(commandName);
-        const suggestionMessage = similarCommands ? `Bạn có thể đã nhập sai lệnh, thử: ${similarCommands}` : '';
-
-        return api.sendMessage(suggestionMessage, threadID, (err, info) => {
-            if (!err) {
-                setTimeout(() => api.unsendMessage(info.messageID), 20000);
-            }
-        });
+        if (!allCommands.includes(commandName)) {
+            return notfoundCommand.handleNotFound({
+                api,
+                event,
+                commandName,
+                prefix: threadPrefix,
+                allCommands
+            });
+        }
     }
 }
             
@@ -170,7 +161,7 @@ if (isPrefixed) {
                 }
 
                 if (command.onPrefix && !isPrefixed) {
-                    api.sendMessage(`Lệnh này yêu cầu prefix: ${adminConfig.prefix}${command.name}`, event.threadID);
+                    api.sendMessage(`Lệnh này yêu cầu prefix: ${threadPrefix}${command.name}`, event.threadID);
                     return;
                 } else if (!command.onPrefix && isPrefixed) {
                     api.sendMessage(`Lệnh này không yêu cầu prefix:\n bỏ dấu đi gõ '${command.name}'`, event.threadID);
@@ -197,7 +188,7 @@ if (isPrefixed) {
                     }
                 }
                 if (command['usedby'] === 1 && !adminConfig['adminUIDs'].includes(senderID)) {
-                    api.sendMessage('Lệnh này chỉ dành cho Quản trị viên nhóm Bot.', threadID);
+                    api.sendMessage('Lệnh này chỉ dành cho Quản trị viên nhóm.', threadID);
                     return;
                 } else {
                     if (command['usedby'] === 2 && (!adminConfig['moderatorUIDs'] || !adminConfig['moderatorUIDs'].includes(senderID))) {
