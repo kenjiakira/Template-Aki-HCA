@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { sendThreadNotification } = require('../utils/logs');
 
 module.exports = {
   name: "thread",
@@ -44,51 +45,46 @@ module.exports = {
     if (!this.nameCache) this.initNameCache();
 
     if (this.nameCache[userID]) {
-      const cached = this.nameCache[userID];
-     
-      if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
-        return {[userID]: {name: cached.name}};
-      }
-    }
-
-    const now = Date.now();
-    if (now - this.lastApiCall < this.API_COOLDOWN) {
-      await new Promise(resolve => setTimeout(resolve, this.API_COOLDOWN));
-    }
-    
-    try {
-      const info = await api.getUserInfo(userID);
-      this.lastApiCall = Date.now();
-      if (info[userID]?.name) {
-        this.saveName(userID, info[userID].name);
-        return info;
-      }
-      throw new Error('No name in response');
-    } catch (err) {
-      console.log(`Failed to get info for ${userID}:`, err);
-      
-      if (threadID) {  
-        try {
-          const threadInfo = await api.getThreadInfo(threadID);
-          const participant = threadInfo.userInfo?.find(user => user.id === userID);
-          if (participant?.name) {
-            this.saveName(userID, participant.name);
-            return {[userID]: {name: participant.name}};
-          }
-        } catch (e) {
-          console.error('Fallback name fetch failed:', e);
+        const cached = this.nameCache[userID];
+        if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+            return {[userID]: {name: cached.name}};
         }
-      }
-
-      if (this.nameCache[userID]) {
-        return {[userID]: {name: this.nameCache[userID].name}};
-      }
-
-      const fallbackName = `Người dùng Facebook (${userID})`;
-      this.saveName(userID, fallbackName);
-      return {[userID]: {name: fallbackName}};
     }
-  },
+
+    try {
+        const info = await api.getUserInfo(userID);
+        this.lastApiCall = Date.now();
+        if (info[userID]?.name) {
+            this.saveName(userID, info[userID].name);
+            return info;
+        }
+    } catch (err) {
+
+    }
+
+    if (threadID) {  
+        try {
+            const threadInfo = await api.getThreadInfo(threadID);
+            if (threadInfo?.userInfo) {
+                const participant = threadInfo.userInfo.find(user => user.id === userID);
+                if (participant?.name) {
+                    this.saveName(userID, participant.name);
+                    return {[userID]: {name: participant.name}};
+                }
+            }
+        } catch (e) {
+          
+        }
+    }
+
+    if (this.nameCache[userID]) {
+        return {[userID]: {name: this.nameCache[userID].name}};
+    }
+
+    const fallbackName = `Người dùng Facebook (${userID})`;
+    this.saveName(userID, fallbackName);
+    return {[userID]: {name: fallbackName}};
+},
 
   async tryChangeColor(api, color, threadID) {
     return new Promise((resolve, reject) => {
@@ -101,76 +97,317 @@ module.exports = {
 
   onEvents: async function({ api, event, Threads }) {
     const { threadID, author, logMessageType, logMessageData } = event;
-    
-    const getAuthorName = async () => {
-      const info = await this.getUserInfo(api, author, threadID);
-      return info[author]?.name || "Người dùng Facebook";
-    };
 
-    if (logMessageType === "log:thread-image") {
-      try {
-        const authorName = await getAuthorName();
-        
-        const antiimgPath = path.join(__dirname, '../commands/json/antiimage.json');
-        if (fs.existsSync(antiimgPath)) {
-          const antiimgData = JSON.parse(fs.readFileSync(antiimgPath));
-          
-          if (antiimgData[threadID]?.enable) {
-           
-            await new Promise(resolve => setTimeout(resolve, 1000));
+    if (event.type === "message") {
+      const antispamPath = path.join(__dirname, '../commands/json/antispam.json');
+      if (!fs.existsSync(antispamPath)) return;
+      
+      let antispamData = JSON.parse(fs.readFileSync(antispamPath));
+      if (!antispamData.threads?.[threadID]) return;
 
-            if (antiimgData[threadID].localPath && fs.existsSync(antiimgData[threadID].localPath)) {
+      const now = Date.now();
+      const SPAM_WINDOW = 5000;
+      const SPAM_LIMIT = 15; 
+      
+      if (!antispamData.spamData[threadID]) {
+          antispamData.spamData[threadID] = {};
+      }
+      
+      if (!antispamData.spamData[threadID][event.senderID]) {
+          antispamData.spamData[threadID][event.senderID] = {
+              messages: [{
+                  timestamp: now
+              }],
+              warnings: 0
+          };
+      } else {
+
+          antispamData.spamData[threadID][event.senderID].messages.push({
+              timestamp: now
+          });
+
+          const recentMessages = antispamData.spamData[threadID][event.senderID].messages
+              .filter(msg => now - msg.timestamp < SPAM_WINDOW);
+
+          antispamData.spamData[threadID][event.senderID].messages = recentMessages;
+
+          if (recentMessages.length >= SPAM_LIMIT) {
               try {
-                const imageStream = fs.createReadStream(antiimgData[threadID].localPath);
-                await api.changeGroupImage(imageStream, threadID);
-              } catch (localError) {
-                console.error('Local image restore error:', localError);
-                
-                try {
-                  const axios = require('axios');
-                  const { data } = await axios.get(antiimgData[threadID].imageUrl, { responseType: 'stream' });
-                  await api.changeGroupImage(data, threadID);
-                } catch (urlError) {
-                  console.error('URL image restore error:', urlError);
-                  return api.sendMessage("❌ Không thể khôi phục ảnh nhóm!", threadID);
-                }
-              }
-            } else {
-              try {
-                const axios = require('axios');
-                const { data } = await axios.get(antiimgData[threadID].imageUrl, { responseType: 'stream' });
-                await api.changeGroupImage(data, threadID);
+                  await api.removeUserFromGroup(event.senderID, threadID);
+                  api.sendMessage(
+                      `🚫 Đã kick ${event.senderName || "thành viên"} vì spam!\n` +
+                      `⚡ Lý do: ${SPAM_LIMIT} tin nhắn trong ${SPAM_WINDOW/1000} giây`,
+                      threadID
+                  );
+                  delete antispamData.spamData[threadID][event.senderID];
               } catch (error) {
-                console.error('Image restore error:', error);
-                return api.sendMessage("❌ Không thể khôi phục ảnh nhóm!", threadID);
+                  console.error("Anti-spam kick error:", error);
+                  api.sendMessage(
+                      "❌ Không thể kick thành viên spam. Bot cần quyền quản trị viên!",
+                      threadID
+                  );
               }
-            }
-            
-            api.sendMessage(
-              `⚠️ ${authorName} đã cố gắng đổi ảnh nhóm!\n` +
-              `🚫 Đã khôi phục về ảnh cũ!`,
-              threadID
-            );
-            return;
           }
-        }
+      }
 
-        let msg = `👥 THAY ĐỔI ẢNH NHÓM\n` +
-                 `━━━━━━━━━━━━━━━━━━\n\n` +
-                 `👤 Người thay đổi: ${authorName}\n` +
-                 `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
-        
-        api.sendMessage(msg, threadID);
-        
+      fs.writeFileSync(antispamPath, JSON.stringify(antispamData, null, 4));
+    }
+
+    if (event.type === "message" && event.mentions) {
+      const antitagPath = path.join(__dirname, '../commands/json/antitag.json');
+      if (!fs.existsSync(antitagPath)) return;
+      
+      let antitagData = JSON.parse(fs.readFileSync(antitagPath));
+      if (!antitagData.threads?.[threadID]) return;
+
+      const mentionsCount = Object.keys(event.mentions).length;
+      if (mentionsCount === 0) return;
+
+      const now = Date.now();
+      const HOURS_24 = 24 * 60 * 60 * 0;
+      
+      if (!antitagData.tagData[threadID]) {
+          antitagData.tagData[threadID] = {};
+      }
+      
+      if (!antitagData.tagData[threadID][event.senderID]) {
+          antitagData.tagData[threadID][event.senderID] = {
+              count: 0,
+              lastReset: now
+          };
+      }
+
+      let userData = antitagData.tagData[threadID][event.senderID];
+      
+      if (now - userData.lastReset >= HOURS_24) {
+          userData.count = 0;
+          userData.lastReset = now;
+      }
+
+      userData.count += mentionsCount;
+
+      if (userData.count === 2) {
+          api.sendMessage(
+              `⚠️ Cảnh báo ${event.senderName || "Thành viên"}: \n` +
+              `Bạn đã tag 2/3 lần cho phép trong 24h.\n` +
+              `Lần cuối sẽ bị kick khỏi nhóm!`,
+              threadID
+          );
+      }
+      
+      if (userData.count >= 3) {
+          try {
+              await api.removeUserFromGroup(event.senderID, threadID);
+              api.sendMessage(
+                  `🚫 Đã kick ${event.senderName || "thành viên"} vì tag spam quá giới hạn!\n` +
+                  `👉 3 lần/24h`,
+                  threadID
+              );
+              delete antitagData.tagData[threadID][event.senderID];
+          } catch (error) {
+              console.error("Anti-tag kick error:", error);
+              api.sendMessage(
+                  "❌ Không thể kick thành viên. Bot cần quyền quản trị viên!",
+                  threadID
+              );
+          }
+      }
+
+      fs.writeFileSync(antitagPath, JSON.stringify(antitagData, null, 4));
+    }
+
+    if (logMessageType === "log:unsubscribe") {
+      const antioutPath = path.join(__dirname, '../commands/json/antiout.json');
+      if (!fs.existsSync(antioutPath)) return;
+      
+      const antioutData = JSON.parse(fs.readFileSync(antioutPath));
+      if (!antioutData[threadID]) return;
+
+      const leftParticipantFbId = event.logMessageData.leftParticipantFbId || 
+                                 event.logMessageData.participantFbId;
+      
+      try {
+          if (leftParticipantFbId == api.getCurrentUserID()) return;
+          
+          const isKicked = event.author !== leftParticipantFbId;
+          if (isKicked) return;
+
+          const userName = event.logMessageData.leftParticipantFbId_name || 
+                          event.logMessageData.name ||
+                          "Thành viên";
+          
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          let retryCount = 0;
+          const maxRetries = 3;
+          let success = false;
+          
+          while (retryCount < maxRetries && !success) {
+              try {
+                  // Use promisified version with proper error handling
+                  await new Promise((resolve, reject) => {
+                      api.addUserToGroup(leftParticipantFbId, threadID, (err) => {
+                          if (err) {
+                              if (typeof err === 'object') {
+                                  reject(new Error(err.error || 'Unknown error'));
+                              } else {
+                                  reject(err);
+                              }
+                          } else {
+                              resolve();
+                          }
+                      });
+                  });
+                  
+                  success = true;
+                  await api.sendMessage(
+                      `🔒 Đã thêm ${userName} trở lại nhóm!\n⚠️ Nhóm đang bật chế độ chống rời nhóm.`,
+                      threadID
+                  );
+              } catch (addError) {
+                  retryCount++;
+                  if (retryCount < maxRetries) {
+                      await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+                      continue;
+                  }
+                  throw addError;
+              }
+          }
       } catch (error) {
-        console.error('Thread Image Update Error:', error);
-        api.sendMessage("❌ Có lỗi xảy ra khi cập nhật ảnh nhóm", threadID);
+          console.error("Anti-out error:", error);
+          let errorMsg = "⚠️ Không thể thêm lại thành viên vào nhóm. ";
+          
+          if (error.message?.includes('not found')) {
+              errorMsg += "Không tìm thấy người dùng.";
+          } else if (error.message?.includes('blocked')) {
+              errorMsg += "Người dùng đã chặn bot.";
+          } else if (error.message?.includes('limit')) {
+              errorMsg += "Bot đang bị Facebook hạn chế tính năng.";
+          } else {
+              errorMsg += "Có thể bot không phải là quản trị viên.";
+          }
+
+          api.sendMessage(errorMsg, threadID);
       }
       return;
     }
 
+    if (logMessageType === "log:subscribe") {
+      const antimemPath = path.join(__dirname, '../commands/json/antijoin.json');
+      if (!fs.existsSync(antimemPath)) return;
+      
+      const antimemData = JSON.parse(fs.readFileSync(antimemPath));
+      if (!antimemData[threadID]) return;
+
+      const addedParticipants = event.logMessageData.addedParticipants;
+      if (!addedParticipants || !addedParticipants.length) return;
+
+      try {
+          const authorInfo = await this.getUserInfo(api, author, threadID);
+          const authorName = authorInfo[author]?.name || "Người dùng Facebook";
+
+          for (const user of addedParticipants) {
+              if (user.userFbId === api.getCurrentUserID()) continue;
+              
+              await api.removeUserFromGroup(user.userFbId, threadID);
+          }
+
+          api.sendMessage(
+              `⚠️ ${authorName} đã cố gắng thêm thành viên mới!\n` +
+              `🚫 Đã kick các thành viên mới do nhóm đang bật chế độ chống thêm thành viên.`,
+              threadID
+          );
+      } catch (error) {
+          console.error("Anti-member error:", error);
+          api.sendMessage(
+              "❌ Không thể kick thành viên mới. Có thể bot không phải là quản trị viên.",
+              threadID
+          );
+      }
+      return;
+    }
+
+    const getAuthorName = async () => {
+        try {
+            const info = await this.getUserInfo(api, author, threadID);
+            return info[author]?.name || `Người dùng Facebook (${author})`;
+        } catch (error) {
+            return `Người dùng Facebook (${author})`;
+        }
+    };
+
+    if (logMessageType === "log:thread-image") {
+        try {
+            const authorName = await getAuthorName();
+            const msg = `👥 THAY ĐỔI ẢNH NHÓM\n` +
+                       `━━━━━━━━━━━━━━━━━━\n\n` +
+                       `👤 Người thay đổi: ${authorName}\n` +
+                       `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
+            
+            await sendThreadNotification(api, threadID, msg, 'avatar');
+        } catch (error) {
+           
+            console.error('Thread Image Update Error:', error.message);
+        }
+    }
+
     if (logMessageType === "log:thread-admins") {
       try {
+        const antirolePath = path.join(__dirname, '../commands/json/antirole.json');
+        if (fs.existsSync(antirolePath)) {
+          const antiroleData = JSON.parse(fs.readFileSync(antirolePath));
+          
+          if (antiroleData.threads?.[threadID]) {
+            const adminConfig = JSON.parse(fs.readFileSync('./admin.json', 'utf8'));
+            const isAdminBot = adminConfig.adminUIDs.includes(author);
+            const isBotAction = author === api.getCurrentUserID();
+
+            if (isBotAction) return;
+
+            if (!isAdminBot) {
+              const targetID = logMessageData.TARGET_ID;
+              const isAddAdmin = logMessageData.ADMIN_EVENT === "add_admin";
+              
+              setTimeout(async () => {
+                try {
+                  antiroleData.lastBotAction = {
+                    threadID,
+                    targetID,
+                    timestamp: Date.now()
+                  };
+                  fs.writeFileSync(antirolePath, JSON.stringify(antiroleData, null, 4));
+
+                  if (isAddAdmin) {
+                    await api.changeAdminStatus(threadID, targetID, false);
+                  } else {
+                    await api.changeAdminStatus(threadID, targetID, true);
+                  }
+
+                  const authorInfo = await this.getUserInfo(api, author, threadID);
+                  const authorName = authorInfo[author]?.name || "Người dùng Facebook";
+                  const targetInfo = await this.getUserInfo(api, targetID, threadID);
+                  const targetName = targetInfo[targetID]?.name || "Người dùng Facebook";
+
+                  api.sendMessage(
+                    `⚠️ ${authorName} đã cố gắng ${isAddAdmin ? "thêm" : "gỡ"} quản trị viên!\n` +
+                    `🔄 Đã hoàn tác quyền quản trị của ${targetName}\n` +
+                    `💡 Chỉ admin bot mới có thể thay đổi quyền quản trị.`,
+                    threadID
+                  );
+                } catch (error) {
+                  console.error("Role restore error:", error);
+                  api.sendMessage(
+                    "❌ Không thể hoàn tác thay đổi quyền quản trị. Bot cần là quản trị viên!",
+                    threadID
+                  );
+                }
+              }, 1000);
+
+              return;
+            }
+          }
+        }
+
         const authorName = await getAuthorName();
         const targetID = logMessageData.TARGET_ID;
    
@@ -184,85 +421,39 @@ module.exports = {
                  `📝 Hành động: ${logMessageData.ADMIN_EVENT === "add_admin" ? "Thêm Admin" : "Gỡ Admin"}\n` +
                  `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
                  
-        api.sendMessage(msg, threadID);
-        return;
+        await sendThreadNotification(api, threadID, msg, 'admin');
       } catch (error) {
         console.error('Admin Update Error:', error);
         api.sendMessage("❌ Không thể lấy thông tin người dùng", threadID);
       }
     }
 
-    if (logMessageType === "log:thread-name") {
-      const antinamePath = path.join(__dirname, '../commands/json/antiname.json');
-      if (fs.existsSync(antinamePath)) {
-        const antinameData = JSON.parse(fs.readFileSync(antinamePath));
+    if (logMessageType === "log:user-nickname") {
+      try {
+        const authorName = await getAuthorName();
+        const changedFor = logMessageData.participant_id;
+        const oldNickname = logMessageData.previous_nickname || "Tên mặc định";
+        const newNickname = logMessageData.new_nickname || "Tên mặc định";
         
-        if (antinameData[threadID]?.enable) {
-          const oldName = antinameData[threadID].name;
-          try {
-            await api.setTitle(oldName, threadID);
-            const authorName = await getAuthorName();
-            
-            api.sendMessage(
-              `⚠️ ${authorName} đã cố gắng đổi tên nhóm!\n` +
-              `🚫 Đã khôi phục tên nhóm về: ${oldName}`,
-              threadID
-            );
-            return;
-          } catch (error) {
-            console.error('Anti-name Error:', error);
-          }
-        }
+        let msg = `👥 THAY ĐỔI BIỆT DANH\n` +
+                 `━━━━━━━━━━━━━━━━━━\n\n` +
+                 `👤 Người thay đổi: ${authorName}\n` +
+                 `🎯 Đối tượng: ${await getAuthorName(changedFor)}\n` +
+                 `📝 Tên cũ: ${oldNickname}\n` +
+                 `📝 Tên mới: ${newNickname}\n` +
+                 `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
+
+        await sendThreadNotification(api, threadID, msg, 'nick');
+      } catch (error) {
+        console.error('Nickname Update Error:', error);
       }
     }
-    
+
     if (logMessageType === "log:thread-color" || logMessageType === "log:thread-icon") {
       try {
         const authorName = await getAuthorName();
         
         if (logMessageType === "log:thread-color") {
-          const anticolorPath = path.join(__dirname, '../commands/json/anticolor.json');
-          if (fs.existsSync(anticolorPath)) {
-            const anticolorData = JSON.parse(fs.readFileSync(anticolorPath));
-            
-            if (anticolorData[threadID]?.enable) {
-              await new Promise(resolve => setTimeout(resolve, 2000));
-
-              let success = false;
-              const colors = anticolorData[threadID].colors;
-              let currentIndex = anticolorData[threadID].currentColorIndex || 0;
-
-              // Try each color in the array until one works
-              for (let i = 0; i < colors.length; i++) {
-                  const colorIndex = (currentIndex + i) % colors.length;
-                  const color = colors[colorIndex];
-                  
-                  try {
-                      await this.tryChangeColor(api, color, threadID);
-                      success = true;
-                      anticolorData[threadID].currentColorIndex = colorIndex;
-                      fs.writeFileSync(anticolorPath, JSON.stringify(anticolorData, null, 4));
-                      break;
-                  } catch (err) {
-                      console.log(`Failed to set color ${color}:`, err);
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                      continue;
-                  }
-              }
-
-              if (success) {
-                  api.sendMessage(
-                      `⚠️ ${authorName} đã cố gắng đổi màu chat!\n` +
-                      `🚫 Đã khôi phục về màu cũ!`,
-                      threadID
-                  );
-              } else {
-                  throw new Error("All color restoration attempts failed");
-              }
-              return;
-            }
-          }
-
           const oldColor = logMessageData.old_color || "Mặc định";
           const newColor = logMessageData.new_color || "Mặc định";
           
@@ -273,7 +464,7 @@ module.exports = {
                     `🎨 Màu mới: ${newColor}\n` +
                     `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`;
           
-          api.sendMessage(msg, threadID);
+          await sendThreadNotification(api, threadID, msg, 'color');
         } else if (logMessageType === "log:thread-icon") {
           const oldEmoji = logMessageData.old_emoji || "⚪";
           const newEmoji = logMessageData.new_emoji || "⚪";
@@ -290,11 +481,50 @@ module.exports = {
         
       } catch (error) {
         console.error('Thread Update Event Error:', error);
-        api.sendMessage(
-          "❌ Có lỗi xảy ra khi xử lý thay đổi màu chat\n" +
-          "💡 Hệ thống sẽ tự động thử lại sau.", 
-          threadID
-        );
+        api.sendMessage("❌ Có lỗi xảy ra khi xử lý thay đổi nhóm", threadID);
+      }
+    }
+
+    if (logMessageType === "log:user-nickname") {
+      const antinickPath = path.join(__dirname, '../commands/json/antinc.json');
+      if (!fs.existsSync(antinickPath)) return;
+      
+      const antinickData = JSON.parse(fs.readFileSync(antinickPath));
+      if (!antinickData.threads?.[threadID]?.enable) return;
+
+      try {
+          const adminConfig = JSON.parse(fs.readFileSync('./admin.json', 'utf8'));
+          const isAdminBot = adminConfig.adminUIDs.includes(author);
+          const threadInfo = await api.getThreadInfo(threadID);
+          const isGroupAdmin = threadInfo.adminIDs.some(e => e.id == author);
+          const isBotAction = author === api.getCurrentUserID();
+
+          if (isBotAction || isAdminBot || isGroupAdmin) return;
+
+          const changedFor = logMessageData.participant_id;
+          const oldNickname = logMessageData.previous_nickname || "";
+          
+          await api.changeNickname(
+              oldNickname,
+              threadID,
+              changedFor
+          );
+
+          const authorInfo = await this.getUserInfo(api, author, threadID);
+          const authorName = authorInfo[author]?.name || "Người dùng Facebook";
+
+          api.sendMessage(
+              `⚠️ ${authorName} đã cố gắng đổi biệt danh!\n` +
+              `💡 Chỉ admin bot và quản trị viên mới có thể đổi biệt danh.`,
+              threadID
+          );
+
+      } catch (error) {
+          console.error("Anti-nickname error:", error);
+          api.sendMessage(
+              "❌ Không thể hoàn tác biệt danh. Bot cần là quản trị viên!",
+              threadID
+          );
       }
     }
   }
