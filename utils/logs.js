@@ -5,10 +5,10 @@ const threadsPath = "./database/threads.json";
 const chalk = require('chalk');
 const gradient = require('gradient-string');
 const moment = require("moment-timezone");
+const os = require('os'); 
 
 let io = null;
 
-// Add this function to initialize socket.io
 const initializeSocket = (socketIO) => {
     io = socketIO;
 };
@@ -28,6 +28,18 @@ try {
 } catch (err) {
     console.error(err);
 }
+
+const loadConfig = () => {
+    try {
+        const settingsPath = './database/threadSettings.json';
+        if (fs.existsSync(settingsPath)) {
+            return JSON.parse(fs.readFileSync(settingsPath));
+        }
+        return {};
+    } catch (error) {
+        return {};
+    }
+};
 
 const notifyAdmins = async (api, threadID, action, senderID) => {
     if (adminConfig.notilogs) {  
@@ -56,28 +68,58 @@ const notifyAdmins = async (api, threadID, action, senderID) => {
     }
 };
 
+const sendThreadNotification = async (api, threadID, message, type) => {
+    const settings = loadConfig();
+    const threadSettings = settings[threadID] || {};
+    
+    if (threadSettings[`notify_${type}`] !== false) {
+        await api.sendMessage(message, threadID);
+    }
+};
+
+const getMemoryUsage = () => {
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    
+    const toGB = (bytes) => (bytes / 1024 / 1024 / 1024).toFixed(2);
+    return {
+        used: toGB(usedMem),
+        total: toGB(totalMem),
+        percentage: ((usedMem / totalMem) * 100).toFixed(1)
+    };
+};
+
 const logChatRecord = async (api, event) => {
     const threadID = event.threadID;
     const senderID = event.senderID;
     const userName = await getUserName(api, senderID);
     const groupName = await getGroupName(api, threadID);
+    
+    let isAdmin = false;
+    if (threadsData[threadID]?.adminIDs) {
+        isAdmin = threadsData[threadID].adminIDs.some(admin => admin.id === senderID);
+    }
+
     const logHeader = gradientText("━━━━━━━━━━[ CHUỖI CSDL NHẬT KÝ BOT ]━━━━━━━━━━");
 
     if (event.body) {
+        const memory = getMemoryUsage();
         const logMessage = [
             logHeader,
             "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
             `┣➤ 🌐 Nhóm: ${groupName}`,
             `┣➤ 🆔 ID nhóm: ${threadID}`,
-            `┣➤ 👤 ID Người dùng: ${senderID}`,
+            `┣➤ 👤 ID Người dùng: ${senderID}${isAdmin ? ' (Admin)' : ''}`,
             `┣➤ ✉️ Nội dung: ${event.body}`,
             `┣➤ ⏰ Vào lúc: ${time}`,
+            `┣➤ 💻 RAM: ${memory.used}GB/${memory.total}GB (${memory.percentage}%)`,
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         ].join('\n');
 
         console.log(logMessage);
         
-        // Emit to socket if available
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         if (io) {
             io.emit('botLog', { 
                 output: logMessage,
@@ -141,27 +183,34 @@ const removeFromDatabase = (threadID, senderID) => {
 const getGroupName = async (api, threadID) => {
     try {
         const threadInfo = await api.getThreadInfo(threadID);
-        return threadInfo.name || "Group Chat";
+        if (!threadInfo) return `Nhóm ${threadID}`;
+        return threadInfo.name || `Nhóm ${threadID}`;
     } catch (error) {
-        console.error(`Thất bại khi lấy tên của threadID: ${threadID}`, error);
-        return "Group Chat";
+
+        if (!error.errorSummary?.includes('Bạn tạm thời bị chặn')) {
+            console.error(`Lỗi khi lấy tên nhóm ${threadID}:`, error);
+        }
+        return `Nhóm ${threadID}`;
     }
 };
 
 const getUserName = async (api, userID) => {
     try {
         const userInfo = await api.getUserInfo(userID);
-        return userInfo[userID]?.name || "Unknown User";
-    } catch (error) {
-        console.error(`Thất bại khi lấy tên của userID: ${userID}`, error);
-        return "Unknown User";
+        if (!userInfo || !userInfo[userID]) return `Người dùng ${userID}`;        return userInfo[userID].name || `Người dùng ${userID}`;    } catch (error) {
+
+        if (!error.errorSummary?.includes('Bạn tạm thời bị chặn')) {
+            console.error(`Lỗi khi lấy tên người dùng ${userID}:`, error);
+        }
+        return `Người dùng ${userID}`;
     }
 };
 
 module.exports = { 
     logChatRecord, 
     notifyAdmins, 
-    handleBotAddition, 
+    handleBotAddition,     
     handleBotRemoval,
-    initializeSocket  
+    initializeSocket,
+    sendThreadNotification
 };
