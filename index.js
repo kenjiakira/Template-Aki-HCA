@@ -24,4 +24,3 @@ function startBotProcess(script) {
 }
 
 startBotProcess("main.js");
- startBotProcess("./dashboard.js");
