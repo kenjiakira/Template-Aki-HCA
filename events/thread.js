@@ -59,7 +59,7 @@ module.exports = {
             return info;
         }
     } catch (err) {
-
+    
     }
 
     if (threadID) {  
@@ -106,8 +106,8 @@ module.exports = {
       if (!antispamData.threads?.[threadID]) return;
 
       const now = Date.now();
-      const SPAM_WINDOW = 5000;
-      const SPAM_LIMIT = 15; 
+      const SPAM_WINDOW = 2000;
+      const SPAM_LIMIT = 5;
       
       if (!antispamData.spamData[threadID]) {
           antispamData.spamData[threadID] = {};
@@ -160,11 +160,16 @@ module.exports = {
       let antitagData = JSON.parse(fs.readFileSync(antitagPath));
       if (!antitagData.threads?.[threadID]) return;
 
-      const mentionsCount = Object.keys(event.mentions).length;
-      if (mentionsCount === 0) return;
+      const mentionsKeys = Object.keys(event.mentions);
+      const hasEveryoneMention = mentionsKeys.some(key => 
+          event.mentions[key].toLowerCase().includes('mọi người') || 
+          event.mentions[key].toLowerCase().includes('everyone')
+      );
+
+      if (!hasEveryoneMention) return;
 
       const now = Date.now();
-      const HOURS_24 = 24 * 60 * 60 * 0;
+      const HOURS_24 = 24 * 60 * 60 * 1000;
       
       if (!antitagData.tagData[threadID]) {
           antitagData.tagData[threadID] = {};
@@ -173,7 +178,9 @@ module.exports = {
       if (!antitagData.tagData[threadID][event.senderID]) {
           antitagData.tagData[threadID][event.senderID] = {
               count: 0,
-              lastReset: now
+              lastReset: now,
+              lastTagTime: 0,
+              tagsInWindow: 0
           };
       }
 
@@ -182,25 +189,36 @@ module.exports = {
       if (now - userData.lastReset >= HOURS_24) {
           userData.count = 0;
           userData.lastReset = now;
+          userData.tagsInWindow = 0;
       }
 
-      userData.count += mentionsCount;
+      if (now - userData.lastTagTime > 10000) {
+          userData.tagsInWindow = 0;
+      }
+
+
+      userData.count++;
+      userData.tagsInWindow++;
+      userData.lastTagTime = now;
 
       if (userData.count === 2) {
           api.sendMessage(
               `⚠️ Cảnh báo ${event.senderName || "Thành viên"}: \n` +
-              `Bạn đã tag 2/3 lần cho phép trong 24h.\n` +
+              `Bạn đã tag everyone/mọi người ${userData.count}/3 lần cho phép trong 24h.\n` +
               `Lần cuối sẽ bị kick khỏi nhóm!`,
               threadID
           );
       }
       
-      if (userData.count >= 3) {
+   
+      if (userData.count >= 3 || userData.tagsInWindow >= 5) {
           try {
               await api.removeUserFromGroup(event.senderID, threadID);
               api.sendMessage(
-                  `🚫 Đã kick ${event.senderName || "thành viên"} vì tag spam quá giới hạn!\n` +
-                  `👉 3 lần/24h`,
+                  `🚫 Đã kick ${event.senderName || "thành viên"} vì:\n` +
+                  (userData.count >= 3 ? 
+                      `👉 Tag everyone/mọi người quá 3 lần trong 24h` : 
+                      `👉 Tag everyone/mọi người spam ${userData.tagsInWindow} lần trong 10 giây`),
                   threadID
               );
               delete antitagData.tagData[threadID][event.senderID];
@@ -505,9 +523,7 @@ module.exports = {
           const oldNickname = logMessageData.previous_nickname || "";
           
           await api.changeNickname(
-              oldNickname,
-              threadID,
-              changedFor
+              oldNickname,              threadID,              changedFor
           );
 
           const authorInfo = await this.getUserInfo(api, author, threadID);
