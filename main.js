@@ -1,26 +1,40 @@
-
 const fs = require("fs");
 const gradient = require("gradient-string");
- const cron = require('node-cron');
+const cron = require('node-cron');
 const chalk = require("chalk");
 const { exec } = require("child_process");
 const { handleListenEvents } = require("./utils/listen");
+const lockfile = require('proper-lockfile');
+const portfinder = require('portfinder');
+const path = require('path');
 
 const config = JSON.parse(fs.readFileSync("./logins/hut-chat-api/config.json", "utf8"));
 
-cron.schedule('0 3 * * *', () => {
-    console.log('Exiting the process at 3:00 AM');
-    process.exit(1);
-}, {
-    timezone: "Asia/Ho_Chi_Minh"
-});
+const BOT_LOCK_FILE = path.join(__dirname, 'bot.running');
 
-cron.schedule('0 5 * * *', () => {
-    console.log('Exiting the process at 5:00 AM');
-    process.exit(1);
-}, {
-    timezone: "Asia/Ho_Chi_Minh"
-});
+const checkBotRunning = () => {
+    try {
+        if (fs.existsSync(BOT_LOCK_FILE)) {
+            console.error(boldText(gradient.passion("Bot đang chạy ở một cửa sổ khác!")));
+            return true;
+        }
+        fs.writeFileSync(BOT_LOCK_FILE, String(process.pid));
+        return false;
+    } catch (err) {
+        return false;
+    }
+};
+
+const cleanupBot = () => {
+    try {
+        if (fs.existsSync(BOT_LOCK_FILE)) {
+            fs.unlinkSync(BOT_LOCK_FILE);
+        }
+    } catch (err) {
+       
+    }
+};
+
 const proxyList = fs.readFileSync("./utils/prox.txt", "utf-8").split("\n").filter(Boolean);
 const fonts = require('./utils/fonts');
 function getRandomProxy() {
@@ -35,6 +49,21 @@ const threadsDB = JSON.parse(fs.readFileSync("./database/threads.json", "utf8") 
 const usersDB = JSON.parse(fs.readFileSync("./database/users.json", "utf8") || "{}");
 const boldText = (text) => chalk.bold(text);
 global.fonts = fonts;
+const loadCommand = (commandName) => {
+    try {
+        delete require.cache[require.resolve(`./commands/${commandName}.js`)];
+        const command = require(`./commands/${commandName}.js`);
+        if (command.name && typeof command.name === 'string') {
+            global.cc.module.commands[command.name] = command;
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error(`Failed to load command ${commandName}:`, error);
+        return false;
+    }
+};
+
 global.cc = {
     admin: "admin.json",
     adminBot: adminConfig.adminUIDs,
@@ -50,7 +79,9 @@ global.cc = {
     },
     cooldowns: {},
     getCurrentPrefix: () => global.cc.prefix,
-    reload: {}
+    reload: {},
+    loadCommand: loadCommand,
+    reloadCommand: loadCommand
 };
 
 global.cc.reloadCommand = function (commandName) {
@@ -134,11 +165,47 @@ const reloadModules = () => {
     const eventCommands = loadEventCommands();
     console.log(boldText(gradient.passion("[ BOT MODULES RELOADED ]")));
 };
-const startBot = () => {
-  console.log(boldText(gradient.retro("Logging via AppState...")));
 
-    login({ appState: JSON.parse(fs.readFileSync(config.APPSTATE_PATH, "utf8")) }, (err, api) => {
-        if (err) return console.error(boldText(gradient.passion(`Login error: ${JSON.stringify(err)}`)));
+const startBot = async () => {
+    if (checkBotRunning()) {
+        process.exit(1);
+    }
+
+    try {
+        currentPort = await portfinder.getPortPromise({
+            port: 3001,
+            stopPort: 4000
+        });
+    } catch (err) {
+        console.error(boldText(gradient.passion("No available ports found!")));
+        cleanupBot();
+        process.exit(1);
+    }
+
+    console.log(boldText(gradient.retro(`Starting bot on port ${currentPort}...`)));
+
+    console.log(boldText(gradient.retro("Logging via AppState...")));
+
+    const { scheduleAutoGiftcode } = require('./utils/autoGiftcode');
+
+    login({ appState: JSON.parse(fs.readFileSync(config.APPSTATE_PATH, "utf8")) }, async (err, api) => {
+        if (err) {
+            console.error(boldText(gradient.passion(`Login error: ${JSON.stringify(err)}`)));
+            
+            if (err.code === 'ENOTFOUND' && err.syscall === 'getaddrinfo' && err.hostname === 'www.facebook.com') {
+                console.log(boldText(gradient.cristal("Detected Facebook connection error")));
+                return;
+            }
+            return;
+        }
+
+        try {
+            scheduleAutoGiftcode(api);
+            console.log('📦 Auto Giftcode system initialized!');
+        } catch (error) {
+            console.error('Failed to initialize Auto Giftcode system:', error);
+        }
+
         console.log(boldText(gradient.retro("SUCCESSFULLY LOGGED IN VIA APPSTATE")));
         console.log(boldText(gradient.retro("Picked Proxy IP: " + proxy)));
         console.log(boldText(gradient.vice("━━━━━━━[ COMMANDS DEPLOYMENT ]━━━━━━━━━━━")));
@@ -198,6 +265,7 @@ const startBot = () => {
                 );
             }
         }
+                '║ • ARJHIL DUCAYANAN',
         console.log(boldText(gradient.passion("━━━━[ READY INITIALIZING DATABASE ]━━━━━━━")));
         console.log(boldText(gradient.cristal(`╔════════════════════`)));
         console.log(boldText(gradient.cristal(`║ DATABASE SYSTEM STATS`)));
@@ -215,8 +283,7 @@ const startBot = () => {
                 '║ • JR BUSACO',
                 '║ • JONELL MAGALLANES',
                 '║ • JAY MAR',
-                '║ • KENJI AKIRA',
-                '╚════════════════════'
+                '║ • KENJI AKIRA',                '╚════════════════════'
             ];
         
             messages.forEach(msg => console.log(boldText(gradient.cristal(msg))));
@@ -229,4 +296,54 @@ const startBot = () => {
     });
 };
 
-startBot();
+process.on('exit', () => {
+    cleanupBot();
+});
+
+process.on('SIGINT', () => {
+    console.log(boldText(gradient.cristal("\nGracefully shutting down...")));
+    cleanupBot();
+    process.exit(0);
+});
+
+process.on('uncaughtException', async (err) => {
+    // Ignore Facebook rate limit errors
+    if (err?.error === 3252001 || 
+        err?.errorSummary?.includes('Bạn tạm thời bị chặn') ||
+        (err?.error && err?.blockedAction)) {
+        return; // Silently ignore these errors  
+    }
+
+    if (err.code === 'ENOTFOUND' && 
+        err.syscall === 'getaddrinfo' && 
+        err.hostname === 'www.facebook.com') {
+        console.log(boldText(gradient.cristal("Facebook connection lost")));
+    } else {
+        console.error('Uncaught Exception:', 
+            err?.message || err?.errorSummary || 'Unknown error');
+    }
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+   
+    if (reason?.error === 3252001 || 
+        reason?.errorSummary?.includes('Bạn tạm thời bị chặn') ||
+        (reason?.error && reason?.blockedAction)) {
+        return; 
+    }
+
+    if (reason && reason.code === 'ENOTFOUND' && 
+        reason.syscall === 'getaddrinfo' && 
+        reason.hostname === 'www.facebook.com') {
+        console.log(boldText(gradient.cristal("Facebook connection lost")));
+    } else {
+        console.error('Unhandled Rejection:', 
+            reason?.message || reason?.errorSummary || 'Unknown error');
+    }
+});
+
+startBot().catch(async (err) => {
+    console.error(boldText(gradient.passion("Failed to start bot:")), err);
+    cleanupBot();
+    process.exit(1);
+});
