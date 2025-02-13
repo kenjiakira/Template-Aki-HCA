@@ -186,8 +186,6 @@ const startBot = async () => {
 
     console.log(boldText(gradient.retro("Logging via AppState...")));
 
-    const { scheduleAutoGiftcode } = require('./utils/autoGiftcode');
-
     login({ appState: JSON.parse(fs.readFileSync(config.APPSTATE_PATH, "utf8")) }, async (err, api) => {
         if (err) {
             console.error(boldText(gradient.passion(`Login error: ${JSON.stringify(err)}`)));
@@ -197,13 +195,6 @@ const startBot = async () => {
                 return;
             }
             return;
-        }
-
-        try {
-            scheduleAutoGiftcode(api);
-            console.log('📦 Auto Giftcode system initialized!');
-        } catch (error) {
-            console.error('Failed to initialize Auto Giftcode system:', error);
         }
 
         console.log(boldText(gradient.retro("SUCCESSFULLY LOGGED IN VIA APPSTATE")));
